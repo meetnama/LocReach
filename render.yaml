@@ -1,0 +1,56 @@
+# LocReach full stack on Render (app + Chrome, SearXNG, OpenSERP)
+# Persistent disk is NOT available on free — DB may reset on redeploy.
+services:
+  - type: web
+    name: locreach
+    runtime: docker
+    plan: free
+    region: frankfurt
+    rootDir: localization-leads
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.8"
+      - key: SEARXNG_URL
+        fromService:
+          name: locreach-searxng
+          type: web
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: OPENSERP_URL
+        fromService:
+          name: locreach-openserp
+          type: web
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: GROQ_API_KEY
+        sync: false
+      - key: LINKEDIN_EMAIL
+        sync: false
+      - key: LINKEDIN_PASSWORD
+        sync: false
+
+  - type: web
+    name: locreach-searxng
+    runtime: docker
+    plan: free
+    region: frankfurt
+    rootDir: searxng
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    autoDeploy: true
+    envVars:
+      - key: SEARXNG_BIND_ADDRESS
+        value: "0.0.0.0"
+      - key: SEARXNG_LIMITER
+        value: "false"
+
+  - type: web
+    name: locreach-openserp
+    runtime: docker
+    plan: free
+    region: frankfurt
+    rootDir: openserp
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    autoDeploy: true
