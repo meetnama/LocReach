@@ -1,12 +1,16 @@
 # LocReach Lead Discovery — Project Memory
 
-_Last updated: 2026-07-23 (session 41 — cloud SERP port fix, Chrome Docker flags, serp_summary/geo tighten)_
+_Last updated: 2026-07-23 (session 41 — cloud SERP/Chrome/geo fixes + obsolete-file cleanup)_
 
-**Read this first in every new session.** This file is the authoritative snapshot of how the app works *today*. Older user-facing docs (`Setup/README.txt`, desktop `Chats.txt`, Arabic summaries) may still describe the **old 4-step pipeline** (`discovered_domains` + `verified_companies` + separate Site Scanner). The live app is a **3-step unified pipeline** with a single `domains` table.
+**Read this first in every new session.** This file is the authoritative snapshot of how the app works *today*. Older user-facing docs may still mention the **old 4-step pipeline**. The live app is a **3-step unified pipeline** with a single `domains` table.
 
-### Permanent workflow rule (session 40)
+### Permanent workflow rule (session 40+)
 
 **Every bug / comment / fix:** change and verify **locally first**, then **commit + push** to GitHub so Render auto-deploys online. Do not leave fixes only on the HDD. Cursor User rule + `.cursor/rules/locreach-fix-then-deploy.mdc` (`alwaysApply: true`).
+
+### Session-start constraint (optional, user may set)
+
+Some chats ask: do **not** re-scan the whole repo; only open files the user names. Ignore that when the user explicitly asks for a full review/cleanup.
 
 ---
 
@@ -21,8 +25,8 @@ _Last updated: 2026-07-23 (session 41 — cloud SERP port fix, Chrome Docker fla
 | **Local launcher** | `Setup/6 - Start LocReach.bat` → auto-starts SearXNG + OpenSERP when possible, then `pythonw run_app.py` |
 | **Cloud (live)** | https://locreach.onrender.com — user opens **this URL only** (SearXNG/OpenSERP are backend services) |
 | **Ports (local)** | Streamlit `:8501`, heartbeat `:8502`, SearXNG `:8888`, OpenSERP `:7000` |
-| **Tests** | `test_scoring` + `test_ai_overview` + `test_directory_scrape` + `test_serp_summary` (21+ related); re-run `pytest tests/ -q` after Step 1 changes |
-| **Step 1 log** | `localization-leads/logs/step1_search.log` (weekly autoclean on run start) |
+| **Tests** | `pytest tests/ -q` — **48** passed (scoring, ai_overview, directory_scrape, serp_summary, service_url, …) |
+| **Step 1 log** | `localization-leads/logs/step1_search.log` (weekly autoclean on run start; gitignored) |
 | **Launcher log** | `localization-leads/logs/run_app.log` (shutdown reason: `/closing` vs heartbeat timeout) |
 
 ### Cloud deploy (session 40)
@@ -63,7 +67,7 @@ _Last updated: 2026-07-23 (session 41 — cloud SERP port fix, Chrome Docker fla
 | # | Technique | Where | DB `score_reasons` |
 |---|-----------|--------|-------------------|
 | 1 | Directory / industry-dir SERP queries first in bank | `directory_search_queries` → `_build_template_bank` | (feeds #3) |
-| 2 | Google AI Overview + Local Pack (Maps businesses) | `_PARSE_AI_OVERVIEW_JS` / `_PARSE_LOCAL_PACK_JS`; raced ∥ SearXNG/OpenSERP on page-1 via `google_ai_overview` | `ai_overview_verified` / `local_pack_verified` |
+| 2 | Google AI Overview + Local Pack | After free engines; `google_ai_overview(..., extra_organic=xng+osp)` | `ai_overview_verified` / `local_pack_verified` |
 | 3 | Directory / Top-N scrape | `sources/directory_scrape.py` (`is_directory_scrape_target`, `scrape_directory_companies`); hosts: Clutch, GoodFirms, **Proz**, TranslationCafe, TranslationDirectory, GALA, ATA, … | `directory_verified` |
 | 4 | SERP title+snippet: **strong** industry marker + location (`require_signal`) | `serp_summary_verified` / `serp_summary_has_industry` in `step1_qualify.py` | `serp_summary_verified` |
 | 5 | **Normal path only after priority pass** | `cheap_screen_candidate` → `_qualify_one` / `qualify_domain_fast` | score/geo reasons |
@@ -78,17 +82,18 @@ _Last updated: 2026-07-23 (session 41 — cloud SERP port fix, Chrome Docker fla
 
 **Cheap SERP screen (pass 5 only):** `serp_suggests_industry` (strict — not lone ambiguous “localization”) + `serp_suggests_country`; reject junk/listicle/foreign/`serp_irrelevant`/`serp_geo_miss`; persist as `failed`.
 
-**On-page (pass 5):** `score_company` + `industry_evidence_ok` ≥2 strong or 1 strong+≥3 hits; then geo (ccTLD / HQ / city; phone alone never enough).
+**On-page (pass 5):** `score_company` + `industry_evidence_ok`; then geo — ccTLD / HQ / (city **word-boundary** + country/adj) / city+phone; phone alone never enough; city alone without country/HQ ignored.
 
-**DB skip:** `blocked_domains` + all `domains` names. Reset = `db_wipe_all` (all tables); Score-0 rejects are intentional skip-set fills after wipe+re-run.
+**DB skip:** `blocked_domains` + all `domains` names. Reset = `db_wipe_all` (all tables); soft SERP rejects persist as `failed` (intentional skip fills).
 
 ### Step 1 search / throughput (current)
 
 | Piece | Behavior |
 |-------|----------|
 | **Template bank** | Directory queries **first** → primary → expansion → rotation (`_build_template_bank`) |
-| **Engine race (page-1)** | SearXNG ∥ OpenSERP ∥ **Google panels**; panels prepended; then Google gap-fill → Bing → DDG |
-| **Workers** | Local **200**; Render/cloud **8** (max 12) |
+| **Engine order (page-1)** | SearXNG ∥ OpenSERP → then Google panels w/ `extra_organic` → Google gap-fill → Bing → DDG |
+| **SERP helpers** | `service_url_host_port` / `service_reachable` (HTTPS→443); remote `ensure_*` HTTP-wake only (no Docker) |
+| **Workers** | Local **200**; Render (`RENDER`/`LOCREACH_CLOUD`) **8** (max 12) |
 | **Check budget** | `min(15000, max(target×25, 800))` |
 | **Diminishing returns** | ≥3 terms / 15‑min, &lt;12 unique-new/hr → stop |
 | **UI stats** | This-run only; no full-DB embed on Step 1 |
@@ -99,11 +104,11 @@ _Last updated: 2026-07-23 (session 41 — cloud SERP port fix, Chrome Docker fla
 
 ### Email layers (Step 3)
 
-L1 site / L2 EFmt+SMTP / L4 SearXNG. Gate: `lead_gate.is_confirmed_lead()`.
+L1 site / L2 EFmt+SMTP / L4 SearXNG only. **L3 `pattern_verify` deleted** (session 41). Gate: `lead_gate.is_confirmed_lead()`.
 
 ### Launcher / heartbeat
 
-Parent `window.parent` ping; `SHUTDOWN_TIMEOUT` **180s**. **Still needs** full restart + long Step 1 live-validate.
+`run_app.py` sets `LOCREACH_HEARTBEAT_PORT`; `Domain_Discovery.py` injects parent ping **only if that env is set** (cloud Streamlit CMD skips it). `SHUTDOWN_TIMEOUT` **180s**. Still needs local long Step 1 live-validate.
 
 **Restart rule:** After code changes, fully restart via `6 - Start LocReach.bat`.
 
@@ -119,7 +124,7 @@ Parent `window.parent` ping; `SHUTDOWN_TIMEOUT` **180s**. **Still needs** full r
 | **Home button** | Every page **except** Home |
 | **Pipeline steps (Home)** | `pipeline_cards` → real `st.button` + `st.switch_page` (same as Open Database). No HTML cards/Open→/descriptions/stat captions |
 | **Database page** | Domains table: Domain as **link**, sorted by **Score**, no Status/Keyword/Type/date cols |
-| **Jinja embeds** | Home pipeline snapshot; Step 2/3 DB tables; Step 1 full-DB embed **gone** |
+| **Jinja embeds** | Home pipeline snapshot; Step 2/3 DB tables only (`_pipeline_snapshot_embed`, `_db_people_embed`, `_db_leads_embed` + `_embed_base`). Flask page mocks **deleted** session 41 |
 
 ---
 
@@ -250,41 +255,51 @@ Sales_Tool/                              # Git root → github.com/meetnama/LocR
 
 **Operator UX:** end user works only at https://locreach.onrender.com
 
-**Handoff stop point:** session 40 publish complete. Session 41 fixed cloud SERP/Chrome/geo bugs (see below).
+**Handoff stop point:** `PROJECT_MEMORY.md` updated for session 41 (bug fixes + cleanup pushed). Next: cloud Step 1 live-test on https://locreach.onrender.com after Render finishes deploy.
 
 ---
 
-## Session 41 (2026-07-23) — full-repo bug sweep (cloud + Step 1)
+## Session 41 (2026-07-23) — bug sweep + obsolete cleanup
 
-**Fixed (local → push)**
-- Cloud SERP: `service_url_host_port` / `service_reachable` — HTTPS Render URLs use port **443**, not 8888/7000; remote `ensure_*` wakes via HTTP (no Docker)
-- Chrome in Docker: `--no-sandbox`, `--disable-dev-shm-usage`, `CHROME_BIN`, Linux version detect
-- Cloud workers capped (8/12) to reduce free-tier OOM
-- `serp_summary`: strong industry marker + geo `require_signal` (no thin-blurb auto-pass)
-- Geo: word-boundary city match; city alone needs country/adj (or city+phone / HQ)
-- AIO panels run after free engines with `extra_organic` fill; SERP merge capped to `num`
-- UAE `site:.ae` expansion; heartbeat only when `LOCREACH_HEARTBEAT_PORT` set; `.dockerignore`
-- Tests: 48 passed (`test_service_url` + tightened `test_serp_summary`)
+**Commits:** `071395d` (cloud/Step1 fixes), `02bf944` (dead-file cleanup)
 
-**Still open (ops / product)**
-- Free Render: no persistent disk; sibling sleep; Chrome OOM risk under heavy Selenium
+**Architecture / cloud fixes**
+- `service_url_host_port` / `service_reachable` — HTTPS Render → port **443** (was wrongly 8888/7000)
+- Remote `ensure_searxng` / `ensure_openserp` — HTTP wake only; no `docker start` on Render
+- Chrome Docker: `--no-sandbox`, `--disable-dev-shm-usage`, `CHROME_BIN`, Linux `--version` detect
+- Cloud workers 8/12; `.dockerignore` on app image
+- Heartbeat gated on `LOCREACH_HEARTBEAT_PORT` (off on Render CMD)
+
+**Step 1 quality**
+- `serp_summary_has_industry` → ≥1 **strong** marker (not lone “localization”)
+- `serp_suggests_country(..., require_signal=True)` for verified path (no thin-blurb geo pass)
+- Geo: `_token_in_text` word boundaries; city alone needs country/adj (or city+phone / HQ)
+- Panels **after** free engines with `extra_organic`; merge `[:num]`; UAE `site:.ae` key fixed
+- `_ingest_verified_company`: `skip.discard` on upsert exception
+
+**Cleanup deleted**
+- `docs/superpowers/**`, Flask mocks (`domains/people/emails.html`, `_base`, `_components`, `_db_domains_embed`)
+- Dead L3 `pattern_verify.py`; Repowise `.mcp.json`; Setup LocHere guide docx + `_gen_lead_guide.py`
+- Local junk: `.repowise`, `.git_nested_backup_locreach`, caches, logs
+
+**Still open**
+- Free Render: no disk; sibling sleep; Chrome OOM under heavy Selenium
 - Heartbeat 180s long Step 1 live-validate (local)
-- Demote old pre-gate / junk `serp_summary_verified` rows in DB
+- Demote old junk `serp_summary_verified` / pre-gate rows in DB
 - Re-private GitHub after Render App access
+- First real cloud Step 1 live-test after session-41 deploy
 
 ---
 
 ## Session 39 (2026-07-23) — verified-first Step 1
 
 **Shipped**
-- AI Overview + Local Pack Chrome parsers (`sources/utils.py`); `google_ai_overview`
-- `sources/directory_scrape.py` — general + LSP dirs (Proz, TranslationCafe, …); `directory_search_queries`
-- `serp_summary_verified` — title+snippet industry≥1 + geo → no site open
-- `qualify_from_ai_overview` sources: `ai_overview` / `local_pack` / `directory` / `serp_summary`
-- Priority bank + two-pass harvest in `pages/1_Domains.py` (`_result_verified_priority`, `_ingest_verified_company`)
-- Tests: `test_ai_overview.py`, `test_directory_scrape.py`, `test_serp_summary.py`
+- AI Overview + Local Pack Chrome parsers; `google_ai_overview`
+- `sources/directory_scrape.py`; `directory_search_queries`
+- `serp_summary_verified` / `qualify_from_ai_overview` (sources: aio / pack / directory / serp_summary)
+- Priority bank + two-pass harvest in `1_Domains.py`
 
-**Still pending:** heartbeat live-validate; demote old pre-gate qualified; tighten city-only geo; more industry dirs as needed
+**Superseded by session 41:** loose serp_summary industry≥1; city-substring geo; panels raced with empty organics
 
 ---
 
@@ -293,17 +308,14 @@ Sales_Tool/                              # Git root → github.com/meetnama/LocR
 **Qualification**
 - SERP title/snippet = first open gate for **industry + geo** (`serp_suggests_industry`, `serp_suggests_country`, `serp_geo_miss`)
 - On-page: industry mandatory via `industry_evidence_ok`; then geo
-- Geo: phone alone insufficient; bare `+20` / dialling-code lists ignored; need city or HQ (or own ccTLD)
-- False-positive lessons: ulatus.com (form `Egypt (+20)`); aimr/evma/hbc (lone “localization” + city/.eg)
+- Geo: phone alone insufficient; bare `+20` / dialling-code lists ignored
 
 **UI / UX**
-- Home: Open Database **button**; full-DB export button; Recommended Flow removed; pipeline = `st.button` steps (no card HTML/Open→/stats)
-- Step 1: no full-DB qualified embed; no DB cumulative caption under cards; workers UI removed → **200** fixed
-- Database: Domain link; sort by Score; drop Status/Keyword/Type/dates
+- Home: Open Database button; full-DB export; pipeline = `st.button` steps
+- Step 1: no full-DB qualified embed; workers UI removed → local 200 (cloud capped session 41)
+- Database: Domain link; sort by Score
 
 **Export:** Home full DB by category sheets; Step 1 Not Kept sheet from `s1_rejected_log`
-
-**Not live-validated:** heartbeat 180s / parent ping still needs one long Step 1 after full restart
 
 ---
 
@@ -431,18 +443,16 @@ Before the 2026-06/07 rebuild: Domain Discovery → Site Scanner → People → 
 
 | Item | Notes |
 |------|-------|
-| Heartbeat 180s live-validate | Still needs full local restart + long Step 1 |
-| Cloud DB persistence | Free Render has no disk — upgrade plan or external DB for HDD-like saves |
-| Re-private GitHub | Public repo exposes `leads.db`; grant Render access then set private |
-| Chrome OOM on free | Watch Selenium steps on Render; may need paid RAM |
-| Jinja interactive templates | Still unused Flask-oriented mockups; read-only embeds only |
+| Heartbeat 180s live-validate | Local: full restart + long Step 1 still needed |
+| Cloud Step 1 live-test | Confirm session-41 deploy on https://locreach.onrender.com |
+| Cloud DB persistence | Free Render no disk — paid disk or external DB |
+| Re-private GitHub | Public repo has `leads.db`; grant Render App then private |
+| Chrome OOM on free | Mitigated (flags + worker cap) but heavy Selenium still risky |
+| Old junk qualified rows | Demote `serp_summary_verified` / pre-gate noise until wipe/re-run |
 | Same-market re-runs | Skip-all-seen + dim-returns → often **0 new** when DB saturated (expected) |
-| Industry false positives | Weak keyword hits can still score `possible` (e.g. news sites); SERP prefilter helps but not perfect |
-| Geo false negatives / city-only looseness | Local firms lacking city/phone/HQ text may be rejected; city-only geo still loose |
-| Old pre-gate qualified rows | Demote/clean until re-run/clean DB |
-| Google CAPTCHA | Still limits gap-fill |
-| Country filter on exports | Open question from session 36 — still deferred |
-| Pipeline card click UX | Transparent button overlay over cards — works; may need polish if hit-area drifts |
+| Industry false positives | Weak on-page `possible` still possible; serp_summary tightened session 41 |
+| Google CAPTCHA | Still limits Chrome gap-fill / panels |
+| Country filter on exports | Deferred since session 36 |
 | `.cursorrules` location | User deferred (User vs Project rule) |
 
 ---
@@ -491,11 +501,11 @@ Before the 2026-06/07 rebuild: Domain Discovery → Site Scanner → People → 
 | `OpenSERP unavailable — name 'results' is not defined` | Fixed in `utils.py` (`results = []`); restart app |
 | Excel export fails | Session 31 domains fix — update code / reinstall deps |
 | Orange/empty SearXNG (local) | Docker + `6` or `5`; check `settings.yml` has json |
-| Cloud Step 1 no SERP | Confirm Render env `SEARXNG_URL` / `OPENSERP_URL` point at live services; wake sleeping free services |
-| Cloud DB wiped after deploy | Expected on free (no disk); paid disk or external DB for persistence |
+| Cloud Step 1 no SERP | Confirm `SEARXNG_URL`/`OPENSERP_URL`; wake sleeping services; session 41 fixed HTTPS port-443 probe |
+| Cloud DB wiped after deploy | Expected on free (no disk); paid disk or external DB |
 | Site slow first open (cloud) | Free-tier cold start — wait ~1 min, refresh |
-| Step 3 no emails | dnspython; port 25 blocked → rely on L1/L4 |
-| Connection error mid-run | Was iframe heartbeat + 45s watchdog — fixed session 37 (parent heartbeat, 180s). Check `logs/run_app.log` for shutdown reason. Restart via `6 - Start LocReach.bat` |
+| False “SearXNG not reachable” on cloud | Fixed session 41 (`service_reachable`); redeploy if banner still wrong |
+| Connection error mid-run (local) | Heartbeat/watchdog — need `LOCREACH_HEARTBEAT_PORT` via `6 - Start LocReach.bat`; check `logs/run_app.log` |
 | App dies mid-scan | Don’t close LocReach tab; after fix, remounts shouldn’t kill. Memory Saver: exclude localhost |
 | Foreign domains in qualified | Run Step 1 once (auto `db_demote_geo_rejects`) or call demote; promote path disabled |
 | Clean Step 1 market test | Home Danger Zone reset / delete `leads.db` → restart → re-run |
