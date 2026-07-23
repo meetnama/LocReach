@@ -1,8 +1,12 @@
 # LocReach Lead Discovery — Project Memory
 
-_Last updated: 2026-07-23 (session 39 — verified-first Step 1: panels, directories, SERP summary, then normal qualify)_
+_Last updated: 2026-07-23 (session 40 — published to GitHub + Render; Docker stack with Chrome, SearXNG, OpenSERP)_
 
 **Read this first in every new session.** This file is the authoritative snapshot of how the app works *today*. Older user-facing docs (`Setup/README.txt`, desktop `Chats.txt`, Arabic summaries) may still describe the **old 4-step pipeline** (`discovered_domains` + `verified_companies` + separate Site Scanner). The live app is a **3-step unified pipeline** with a single `domains` table.
+
+### Permanent workflow rule (session 40)
+
+**Every bug / comment / fix:** change and verify **locally first**, then **commit + push** to GitHub so Render auto-deploys online. Do not leave fixes only on the HDD. Cursor User rule + `.cursor/rules/locreach-fix-then-deploy.mdc` (`alwaysApply: true`).
 
 ---
 
@@ -14,11 +18,31 @@ _Last updated: 2026-07-23 (session 39 — verified-first Step 1: panels, directo
 | **Purpose** | B2B lead-gen for localization/translation: find qualified companies → decision-makers → confirmed work emails |
 | **Stack** | Streamlit (Python), SQLite (`leads.db`), undetected-chromedriver, SearXNG + OpenSERP (Docker), Groq (optional classifier) |
 | **Entry point** | `Domain_Discovery.py` via `st.navigation(position="top")` |
-| **Launcher** | `Setup/6 - Start LocReach.bat` → auto-starts SearXNG + OpenSERP when possible, then `pythonw run_app.py` |
-| **Ports** | Streamlit `:8501`, heartbeat `:8502`, SearXNG `:8888`, OpenSERP (local Docker) |
+| **Local launcher** | `Setup/6 - Start LocReach.bat` → auto-starts SearXNG + OpenSERP when possible, then `pythonw run_app.py` |
+| **Cloud (live)** | https://locreach.onrender.com — user opens **this URL only** (SearXNG/OpenSERP are backend services) |
+| **Ports (local)** | Streamlit `:8501`, heartbeat `:8502`, SearXNG `:8888`, OpenSERP `:7000` |
 | **Tests** | `test_scoring` + `test_ai_overview` + `test_directory_scrape` + `test_serp_summary` (21+ related); re-run `pytest tests/ -q` after Step 1 changes |
 | **Step 1 log** | `localization-leads/logs/step1_search.log` (weekly autoclean on run start) |
 | **Launcher log** | `localization-leads/logs/run_app.log` (shutdown reason: `/closing` vs heartbeat timeout) |
+
+### Cloud deploy (session 40)
+
+| Piece | Value |
+|-------|--------|
+| **GitHub** | https://github.com/meetnama/LocReach (currently **public**; contains `leads.db` — prefer private + Render GitHub App access when possible) |
+| **Render workspace** | Ahmed's workspace (`tea-d9gig6uigcvs73fq7fug`), region **Frankfurt**, plan **free** |
+| **App service** | `locreach` — Docker + Chrome (`localization-leads/Dockerfile`) → https://locreach.onrender.com |
+| **SearXNG** | `locreach-searxng` — Docker (`searxng/Dockerfile` + `settings.yml`) → https://locreach-searxng.onrender.com |
+| **OpenSERP** | `locreach-openserp` — Docker (`openserp/Dockerfile`) → https://locreach-openserp.onrender.com |
+| **Blueprint** | `render.yaml` at repo root (documents the three services) |
+| **Cloud env** | `GROQ_API_KEY`, `LINKEDIN_EMAIL`, `LINKEDIN_PASSWORD`, `SEARXNG_URL`, `OPENSERP_URL` (app points at the two Render URLs, not localhost) |
+| **Auto-deploy** | Push to `main` → Render rebuilds |
+
+**Free-tier limits (do not ignore):**
+- **No persistent disk** on free → SQLite writes can be wiped on redeploy/restart (not true HDD parity for DB).
+- Services **sleep** when idle → first hit after idle can take ~1 minute.
+- Chrome on free RAM can OOM during heavy Selenium; paid upgrade if browser steps crash.
+- Local Docker auto-restart of containers does **not** apply on Render; use the wired public service URLs.
 
 ### 3-step pipeline (live)
 
@@ -102,7 +126,11 @@ Parent `window.parent` ping; `SHUTDOWN_TIMEOUT` **180s**. **Still needs** full r
 ## Repository map
 
 ```
-Sales_Tool/                              # Git root
+Sales_Tool/                              # Git root → github.com/meetnama/LocReach
+├── render.yaml                          # Render blueprint (locreach + searxng + openserp)
+├── .gitattributes                       # Dockerfile/*.sh keep LF for Linux containers
+├── .cursor/rules/
+│   └── locreach-fix-then-deploy.mdc     # alwaysApply: fix local → push online
 ├── Setup/                               # Windows .bat launchers (path-independent via %~dp0)
 │   ├── 1 - Get Python.bat
 │   ├── 2 - Get Chrome.bat
@@ -114,8 +142,13 @@ Sales_Tool/                              # Git root
 │   ├── README.txt
 │   └── MOVE TO NEW PC.txt
 ├── searxng/
-│   └── settings.yml                     # AUTHORITATIVE; must include `- json` in formats
+│   ├── settings.yml                     # AUTHORITATIVE; must include `- json` in formats
+│   ├── Dockerfile                       # Render SearXNG image (+ entrypoint binds $PORT)
+│   └── entrypoint.sh
+├── openserp/
+│   └── Dockerfile                       # Render OpenSERP on $PORT
 ├── localization-leads/                  # Main Python app
+│   ├── Dockerfile                       # Render app image (Python 3.12 + Google Chrome)
 │   ├── Domain_Discovery.py
 │   ├── run_app.py
 │   ├── ui_theme.py
@@ -124,7 +157,7 @@ Sales_Tool/                              # Git root
 │   ├── step1_qualify.py                 # verified fast-path + cheap_screen + qualify_domain_fast
 │   ├── scanner.py / scoring.py (industry_evidence_ok) / config.py (+ COUNTRY_GEO) / export_excel.py
 │   ├── pages/0_Home.py … 4_Database.py  # 1_Domains: verified-first two-pass harvest
-│   ├── sources/utils.py                 # Google Chrome SERP + AI Overview + Local Pack parsers
+│   ├── sources/utils.py                 # Google Chrome SERP + AI Overview + Local Pack parsers; SEARXNG_URL / OPENSERP_URL
 │   ├── sources/directory_scrape.py      # directory/listicle + LSP dirs; directory_search_queries
 │   ├── sources/geo.py                   # serp_suggests_country + verify_country_location
 │   ├── sources/email/… , sources/people/…
@@ -133,8 +166,8 @@ Sales_Tool/                              # Git root
 │   ├── logs/
 │   │   ├── run_app.log
 │   │   └── step1_search.log             # Step 1 search diagnostics (weekly autoclean)
-│   ├── leads.db
-│   ├── .env
+│   ├── leads.db                         # shipped in git for cloud seed; free Render disk is ephemeral
+│   ├── .env                             # NEVER commit (local + mirrored as Render env vars)
 │   ├── .streamlit/config.toml
 │   ├── .chrome_profile/
 │   └── venv/
@@ -162,6 +195,14 @@ Sales_Tool/                              # Git root
 
 ## How to launch
 
+### Cloud (published — session 40)
+
+1. Open **https://locreach.onrender.com** only (do not use SearXNG/OpenSERP URLs in the browser for normal work).
+2. First load after idle may take ~1 minute (free-tier sleep).
+3. After any code fix: push `main` → wait for Render deploy → hard-refresh the site.
+
+### Local (HDD)
+
 **Daily use:**
 1. Docker Desktop running (recommended for SearXNG/OpenSERP)
 2. `6 - Start LocReach.bat` → backends + browser `http://localhost:8501`
@@ -172,7 +213,9 @@ Sales_Tool/                              # Git root
 
 **Clean Step 1 re-test:** stop LocReach → delete `localization-leads/leads.db` (+ wal/shm if any) → restart → re-run. Same market without wipe mostly hits already-qualified skips + duplicate SERPs.
 
-**Env vars:** `LOCREACH_HEARTBEAT_PORT` (default 8502), `LOCREACH_NO_BROWSER=1`, `SEARXNG_URL`, `GROQ_API_KEY`, `LINKEDIN_EMAIL`, `LINKEDIN_PASSWORD`
+**Env vars:** `LOCREACH_HEARTBEAT_PORT` (default 8502), `LOCREACH_NO_BROWSER=1`, `SEARXNG_URL`, `OPENSERP_URL`, `GROQ_API_KEY`, `LINKEDIN_EMAIL`, `LINKEDIN_PASSWORD`  
+**Local defaults:** `SEARXNG_URL=http://localhost:8888`, `OPENSERP_URL=http://localhost:7000`  
+**Cloud:** same keys on Render; SERP URLs point at `locreach-searxng` / `locreach-openserp` services.
 
 ---
 
@@ -190,7 +233,24 @@ Sales_Tool/                              # Git root
 - Per-run = session only. Full DB = all markets/runs, split by domain `status`.
 - Home Danger Zone reset unchanged (`db_wipe_all`).
 
-**Env / deps:** `GROQ_API_KEY`, LinkedIn creds, `SEARXNG_URL`; **dnspython** required for L2 SMTP.
+**Env / deps:** `GROQ_API_KEY`, LinkedIn creds, `SEARXNG_URL`, `OPENSERP_URL`; **dnspython** required for L2 SMTP.
+
+---
+
+## Session 40 (2026-07-23) — publish LocReach to GitHub + Render
+
+**Shipped**
+- Private→**public** GitHub repo `meetnama/LocReach`; initial push of app + Setup + `searxng/settings.yml` + seeded `leads.db` (`.env` / `venv` never committed)
+- Render free Frankfurt: Docker **locreach** (Chrome + Streamlit), **locreach-searxng**, **locreach-openserp**
+- Wired `SEARXNG_URL` / `OPENSERP_URL` + Groq/LinkedIn env on Render; JSON search verified on SearXNG; OpenSERP `/health` OK
+- `render.yaml`, Dockerfiles, `.gitattributes` (LF for shell/Docker)
+- Permanent rule: fix locally → push online (User rule + `.cursor/rules/locreach-fix-then-deploy.mdc`)
+
+**Known cloud gaps vs HDD**
+- Free tier: **no persistent disk** (DB can reset on redeploy); idle **sleep**; Chrome may OOM under load
+- Prefer re-private GitHub once Render GitHub App is granted access to LocReach (prospect data in public repo)
+
+**Operator UX:** end user works only at https://locreach.onrender.com
 
 ---
 
@@ -351,10 +411,15 @@ Before the 2026-06/07 rebuild: Domain Discovery → Site Scanner → People → 
 
 | Item | Notes |
 |------|-------|
+| Heartbeat 180s live-validate | Still needs full local restart + long Step 1 |
+| Cloud DB persistence | Free Render has no disk — upgrade plan or external DB for HDD-like saves |
+| Re-private GitHub | Public repo exposes `leads.db`; grant Render access then set private |
+| Chrome OOM on free | Watch Selenium steps on Render; may need paid RAM |
 | Jinja interactive templates | Still unused Flask-oriented mockups; read-only embeds only |
 | Same-market re-runs | Skip-all-seen + dim-returns → often **0 new** when DB saturated (expected) |
 | Industry false positives | Weak keyword hits can still score `possible` (e.g. news sites); SERP prefilter helps but not perfect |
-| Geo false negatives | Local firms lacking city/phone/HQ text may be rejected |
+| Geo false negatives / city-only looseness | Local firms lacking city/phone/HQ text may be rejected; city-only geo still loose |
+| Old pre-gate qualified rows | Demote/clean until re-run/clean DB |
 | Google CAPTCHA | Still limits gap-fill |
 | Country filter on exports | Open question from session 36 — still deferred |
 | Pipeline card click UX | Transparent button overlay over cards — works; may need polish if hit-area drifts |
@@ -405,7 +470,10 @@ Before the 2026-06/07 rebuild: Domain Discovery → Site Scanner → People → 
 | Step 1 ends in ~40s with 1 TERM in log | Old indent bug — update `1_Domains.py`; log must show many `TERM` lines |
 | `OpenSERP unavailable — name 'results' is not defined` | Fixed in `utils.py` (`results = []`); restart app |
 | Excel export fails | Session 31 domains fix — update code / reinstall deps |
-| Orange/empty SearXNG | Docker + `6` or `5`; check `settings.yml` has json |
+| Orange/empty SearXNG (local) | Docker + `6` or `5`; check `settings.yml` has json |
+| Cloud Step 1 no SERP | Confirm Render env `SEARXNG_URL` / `OPENSERP_URL` point at live services; wake sleeping free services |
+| Cloud DB wiped after deploy | Expected on free (no disk); paid disk or external DB for persistence |
+| Site slow first open (cloud) | Free-tier cold start — wait ~1 min, refresh |
 | Step 3 no emails | dnspython; port 25 blocked → rely on L1/L4 |
 | Connection error mid-run | Was iframe heartbeat + 45s watchdog — fixed session 37 (parent heartbeat, 180s). Check `logs/run_app.log` for shutdown reason. Restart via `6 - Start LocReach.bat` |
 | App dies mid-scan | Don’t close LocReach tab; after fix, remounts shouldn’t kill. Memory Saver: exclude localhost |
