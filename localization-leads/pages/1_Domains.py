@@ -117,6 +117,7 @@ def _ingest_verified_company(
             source=source,
         )
     except Exception:
+        skip.discard(domain)  # allow retry this run if upsert never happened
         return "skip", 0, 0
     if res.get("status") == "qualified":
         kept_timestamps.append(time.time())
@@ -281,8 +282,10 @@ MAJOR_CITIES = {
 }
 
 _PAGE_SIZE = 10  # match typical SERP page size (15 falsely looked "short" and ended every term)
-_MAX_WORKERS = 200  # fixed parallelism (UI selector removed)
-_DEFAULT_WORKERS = 200
+# Cap workers on Render free tier to avoid Chrome/HTTP OOM; local stays aggressive.
+_ON_CLOUD = bool(os.getenv("RENDER") or os.getenv("LOCREACH_CLOUD"))
+_MAX_WORKERS = 12 if _ON_CLOUD else 200
+_DEFAULT_WORKERS = 8 if _ON_CLOUD else 200
 _MAX_META_PAGES = 10  # deeper free-engine pagination when hunting volume
 # Only stop paginating when a page returns fewer than this many hits (not when < page_size).
 _MIN_PAGE_HITS = 5
@@ -396,7 +399,8 @@ def _rotation_extra_queries(
             "localization Egypt LinkedIn company",
         ]
     tld = {
-        "Egypt": ".eg", "Saudi Arabia": ".sa", "United Arab Emirates": ".ae",
+        "Egypt": ".eg", "Saudi Arabia": ".sa", "UAE": ".ae",
+        "United Arab Emirates": ".ae",
         "Germany": ".de", "France": ".fr", "United Kingdom": ".uk",
     }.get(ctry)
     if tld:
@@ -902,55 +906,55 @@ def _search_page(query: str, num: int, page: int,
         except Exception as exc:
             return [], st, exc
 
-    def _run_panels():
+    def _run_panels(extra_organic: list):
         try:
-            rows = google_ai_overview(query, extra_organic=[]) or []
+            rows = google_ai_overview(query, extra_organic=extra_organic or []) or []
             return rows, None
         except CaptchaHit as exc:
             return [], exc
         except Exception as exc:
             return [], exc
 
+    # Race free engines first; then panels with their organics so name→URL
+    # resolution works (racing with extra_organic=[] starved AIO links).
     race_jobs = {}
-    workers = 2 + (1 if (page == 1 and use_google and not google_in_cooldown()) else 0)
-    with ThreadPoolExecutor(max_workers=max(2, workers)) as race:
+    with ThreadPoolExecutor(max_workers=2) as race:
         if use_searxng:
             meta["xng_tried"] = True
             race_jobs["xng"] = race.submit(_run_xng)
         race_jobs["osp"] = race.submit(_run_osp)
-        if page == 1 and use_google and not google_in_cooldown():
-            race_jobs["panels"] = race.submit(_run_panels)
         for fut in as_completed(race_jobs.values()):
             name = next(k for k, v in race_jobs.items() if v is fut)
-            if name == "panels":
-                rows, err = fut.result()
-                if isinstance(err, CaptchaHit):
-                    meta["captcha"] = True
-                    meta["chain"].append("AIO:CAPTCHA")
-                    _note("Google panels skipped — CAPTCHA")
-                elif err is not None:
-                    meta["chain"].append("AIO:error")
-                    _note(f"Google panels unavailable ({type(err).__name__})")
-                else:
-                    panel_rows = rows or []
-                    if panel_rows:
-                        n_aio = sum(
-                            1 for r in panel_rows if r.get("source") == "ai_overview"
-                        )
-                        n_pack = sum(
-                            1 for r in panel_rows if r.get("source") == "local_pack"
-                        )
-                        meta["chain"].append(f"AIO:{n_aio}+Pack:{n_pack}")
-                        _note(
-                            f"Priority panels — {n_aio} AI Overview + {n_pack} "
-                            "Local Pack (before site qualify)"
-                        )
+            rows, st, err = fut.result()
+            if name == "xng":
+                xng_rows, xng_st, xng_err = rows, st, err
             else:
-                rows, st, err = fut.result()
-                if name == "xng":
-                    xng_rows, xng_st, xng_err = rows, st, err
-                else:
-                    osp_rows, osp_st, osp_err = rows, st, err
+                osp_rows, osp_st, osp_err = rows, st, err
+
+    if page == 1 and use_google and not google_in_cooldown():
+        organic_for_panels = _dedupe(list(xng_rows) + list(osp_rows))
+        rows, err = _run_panels(organic_for_panels)
+        if isinstance(err, CaptchaHit):
+            meta["captcha"] = True
+            meta["chain"].append("AIO:CAPTCHA")
+            _note("Google panels skipped — CAPTCHA")
+        elif err is not None:
+            meta["chain"].append("AIO:error")
+            _note(f"Google panels unavailable ({type(err).__name__})")
+        else:
+            panel_rows = rows or []
+            if panel_rows:
+                n_aio = sum(
+                    1 for r in panel_rows if r.get("source") == "ai_overview"
+                )
+                n_pack = sum(
+                    1 for r in panel_rows if r.get("source") == "local_pack"
+                )
+                meta["chain"].append(f"AIO:{n_aio}+Pack:{n_pack}")
+                _note(
+                    f"Priority panels — {n_aio} AI Overview + {n_pack} "
+                    "Local Pack (before site qualify)"
+                )
 
     if use_searxng:
         if xng_err is not None:
@@ -998,7 +1002,7 @@ def _search_page(query: str, num: int, page: int,
         if q_out is not None:
             q_out.put(("engine", tier))
             q_out.put(("engine_note", ""))
-        return merged[: max(num, len(merged))], tier, meta
+        return merged[:num], tier, meta
 
     meta["fallback"] = True
 

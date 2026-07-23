@@ -90,20 +90,24 @@ def serp_summary_has_industry(
     title: str, snippet: str, industry_slug: str,
 ) -> bool:
     """
-    Loose industry match for SERP title+snippet verify fast-path:
-    any single industry keyword hit counts (including ambiguous terms).
+    Industry match for SERP title+snippet verify fast-path.
+    Requires a real industry slug and at least one strong LSP marker
+    (lone ambiguous \"localization\" / \"language\" is not enough).
     """
     if not industry_slug:
-        return True
-    from scoring import _industry_keyword_list
+        return False
+    from scoring import _industry_keyword_list, _is_strong_industry_term
 
     keywords = _industry_keyword_list(industry_slug)
     if not keywords:
-        return True
+        return False
     combined_lc = f"{title or ''} {snippet or ''}".lower()
     if not combined_lc.strip():
         return False
-    return any(kw.lower() in combined_lc for kw in keywords)
+    hits = [kw for kw in keywords if kw.lower() in combined_lc]
+    if not hits:
+        return False
+    return any(_is_strong_industry_term(h) for h in hits)
 
 
 def serp_summary_verified(
@@ -115,13 +119,16 @@ def serp_summary_verified(
 ) -> bool:
     """
     True when the SERP result summary (title + snippet) already shows both
-    industry (≥1 keyword) and location — qualify without opening the site.
+    industry (strong marker) and location — qualify without opening the site.
     """
     if not serp_summary_has_industry(title, snippet, industry_slug):
         return False
     if country and country != "All Countries":
         from sources.geo import serp_suggests_country
-        if not serp_suggests_country(title or "", snippet or "", country, domain or ""):
+        if not serp_suggests_country(
+            title or "", snippet or "", country, domain or "",
+            require_signal=True,
+        ):
             return False
     return True
 

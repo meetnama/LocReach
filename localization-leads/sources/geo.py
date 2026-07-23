@@ -48,14 +48,19 @@ def serp_suggests_country(
     snippet: str,
     country: str,
     domain: str = "",
+    *,
+    require_signal: bool = False,
 ) -> bool:
     """
     First-pass geo hint from SERP title/snippet — decide whether to open the
     domain at all. Looser than verify_country_location: country name, adjective,
     or major city in the blurb is enough (e.g. "translation services in Egypt").
 
-    Thin/empty SERP text returns True so we don't starve when engines omit
-    snippets; on-page geo still decides keep/reject after fetch.
+    Thin/empty SERP text returns True by default so we don't starve when engines
+    omit snippets; on-page geo still decides keep/reject after fetch.
+
+    When ``require_signal=True`` (SERP-summary verified fast-path), thin text
+    does NOT auto-pass — a real country/city/ccTLD token is required.
     """
     country = (country or "").strip()
     if not country or country == "All Countries":
@@ -68,20 +73,30 @@ def serp_suggests_country(
 
     combined = f"{title or ''} {snippet or ''}".strip()
     if len(combined) < 20:
-        return True
+        return not require_signal
 
     combined_lc = combined.lower()
     geo = COUNTRY_GEO.get(country) or {}
     tokens_lc = [country.lower()]
     tokens_lc.extend(a.lower() for a in (geo.get("adj") or []) if a)
     tokens_lc.extend(c.lower() for c in (geo.get("cities") or []) if c)
-    if any(t and t in combined_lc for t in tokens_lc):
+    if any(t and _token_in_text(t, combined_lc) for t in tokens_lc):
         return True
     # Local-script extras (e.g. Arabic مصر) — match on original combined text
     for t in _SERP_COUNTRY_EXTRA.get(country) or []:
-        if t and (t in combined or t.lower() in combined_lc):
+        if t and (t in combined or _token_in_text(t.lower(), combined_lc)):
             return True
     return False
+
+
+def _token_in_text(needle: str, text_lc: str) -> bool:
+    """Word-boundary match so 'lima'∉'preliminary', 'rome'∉'chromosome'."""
+    n = (needle or "").strip().lower()
+    if not n or not text_lc:
+        return False
+    if " " in n:
+        return n in text_lc
+    return bool(re.search(rf"(?<![a-z0-9]){re.escape(n)}(?![a-z0-9])", text_lc))
 
 
 def _phone_code_digits(code: str) -> str:
@@ -160,8 +175,11 @@ def verify_country_location(domain: str, text: str, country: str) -> tuple[bool,
             evidence.append(f"HQ phrase '{adj}'")
             break
 
-    # 3. Major city -----------------------------------------------------------
-    city_hit = next((c for c in geo.get("cities", []) if c and c in text_lc), None)
+    # 3. Major city (word-boundary — avoid lima⊂preliminary, rome⊂chromosome)
+    city_hit = next(
+        (c for c in geo.get("cities", []) if c and _token_in_text(c, text_lc)),
+        None,
+    )
     if city_hit:
         evidence.append(f"city '{city_hit}'")
 
@@ -175,11 +193,21 @@ def verify_country_location(domain: str, text: str, country: str) -> tuple[bool,
 
     # A phone signal alone is never enough (global contact forms list every
     # dialling code; one +20 line is too weak). Require HQ phrasing or a
-    # major city. A real local number may appear in evidence but does not
-    # pass the gate by itself.
-    located = hq_ok or bool(city_hit)
-    if located:
+    # major city. City-only on a generic gTLD is weak without HQ or a real
+    # local phone — still accept city when HQ is present, or city + phone.
+    if hq_ok:
         return True, evidence
+    if city_hit and phone_full:
+        return True, evidence
+    # City alone: accept only when the page also mentions the country/adj
+    # (reduces "Rome"/"Lima" false locals on global vendor pages).
+    if city_hit:
+        country_mentioned = _token_in_text(country.lower(), text_lc) or any(
+            _token_in_text(a.lower(), text_lc) for a in (geo.get("adj") or []) if a
+        )
+        if country_mentioned:
+            return True, evidence
+        evidence.append("city alone without country/HQ (ignored)")
 
     if phone_bare and not hq_ok and not city_hit:
         return False, evidence + ["need city or HQ (phone alone insufficient)"]

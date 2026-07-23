@@ -12,10 +12,10 @@ from step1_qualify import (
 
 
 def test_serp_summary_rosetta_style():
-    title = "The Best Localization Companies in Egypt Certified ..."
+    title = "The Best Localization & Translation Companies in Egypt Certified ..."
     snippet = (
         "Rosetta The Best Localization Companies in Egypt provides "
-        "high-quality and accurate website localization service"
+        "high-quality and accurate website translation and localization service"
     )
     assert serp_summary_has_industry(title, snippet, "localization")
     assert serp_summary_verified(
@@ -41,8 +41,28 @@ def test_serp_summary_transtec_style():
 
 
 def test_serp_summary_rejects_industry_without_geo():
-    title = "Acme Localization Services"
+    title = "Acme Translation & Localization Services"
     snippet = "We offer localization and translation worldwide"
+    assert serp_summary_has_industry(title, snippet, "localization")
+    assert not serp_summary_verified(
+        title, snippet, "localization",
+        country="Egypt", domain="acme.com",
+    )
+
+
+def test_serp_summary_rejects_ambiguous_localization_only():
+    title = "Acme Localization Services in Egypt"
+    snippet = "We offer localization in Cairo, Egypt"
+    assert not serp_summary_has_industry(title, snippet, "localization")
+    assert not serp_summary_verified(
+        title, snippet, "localization",
+        country="Egypt", domain="acme.com",
+    )
+
+
+def test_serp_summary_rejects_thin_blurb_without_geo_token():
+    title = "Acme Translation Co"
+    snippet = "Professional LSP"
     assert serp_summary_has_industry(title, snippet, "localization")
     assert not serp_summary_verified(
         title, snippet, "localization",

@@ -16,13 +16,16 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-_heartbeat_port = os.environ.get("LOCREACH_HEARTBEAT_PORT", "8502")
-# Heartbeat MUST live on window.parent, not this components.html iframe.
-# Step 1 auto-refreshes remount this iframe every ~1.5s; an iframe-scoped
-# setInterval dies on each remount and the run_app.py watchdog then kills
-# Streamlit (Connection error) even though the tab is still open.
-components.html(
-    f"""
+_heartbeat_port = os.environ.get("LOCREACH_HEARTBEAT_PORT", "").strip()
+# Only when local launcher (run_app.py) sets LOCREACH_HEARTBEAT_PORT.
+# Cloud Render runs Streamlit directly — no watchdog, and 127.0.0.1:8502 is noise.
+if _heartbeat_port:
+    # Heartbeat MUST live on window.parent, not this components.html iframe.
+    # Step 1 auto-refreshes remount this iframe every ~1.5s; an iframe-scoped
+    # setInterval dies on each remount and the run_app.py watchdog then kills
+    # Streamlit (Connection error) even though the tab is still open.
+    components.html(
+        f"""
 <script>
 (function() {{
   var root;
@@ -64,8 +67,8 @@ components.html(
 }})();
 </script>
 """,
-    height=0,
-)
+        height=0,
+    )
 
 pg = st.navigation(
     [

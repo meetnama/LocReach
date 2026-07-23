@@ -113,9 +113,47 @@ def _get_uc_driver():
                     return int(m.group(1))
         return None
 
-    chrome_major = _detect_chrome_major()
+    def _detect_chrome_major_linux() -> int | None:
+        """Parse major version from Chrome/Chromium binary (Docker/Linux)."""
+        import re as _re
+        import subprocess as _sp
+        for binary in (
+            os.getenv("CHROME_BIN"),
+            os.getenv("CHROMIUM_PATH"),
+            "/usr/bin/google-chrome",
+            "/usr/bin/google-chrome-stable",
+            "/usr/bin/chromium",
+            "/usr/bin/chromium-browser",
+        ):
+            if not binary or not os.path.isfile(binary):
+                continue
+            try:
+                out = _sp.check_output(
+                    [binary, "--version"],
+                    stderr=_sp.STDOUT, timeout=8, text=True,
+                )
+                m = _re.search(r"(\d+)\.", out or "")
+                if m:
+                    return int(m.group(1))
+            except Exception:
+                continue
+        return None
+
+    chrome_major = _detect_chrome_major() or _detect_chrome_major_linux()
     if chrome_major:
         print(f"🌐 [SEARCH] Detected Chrome {chrome_major} — fetching matching driver…")
+
+    chrome_bin = (
+        os.getenv("CHROME_BIN")
+        or os.getenv("CHROMIUM_PATH")
+        or ""
+    ).strip()
+    # Container / low-RAM: required for headless Chrome in Docker (Render).
+    _in_container = (
+        os.path.exists("/.dockerenv")
+        or bool(os.getenv("RENDER"))
+        or bool(os.getenv("LOCREACH_CLOUD"))
+    )
 
     for profile_name in (
         "LocReach", "LocReach_2", "LocReach_3",
@@ -129,6 +167,13 @@ def _get_uc_driver():
             options.add_argument("--no-first-run")
             options.add_argument("--no-default-browser-check")
             options.add_argument("--disable-background-networking")
+            options.add_argument("--no-sandbox")
+            options.add_argument("--disable-dev-shm-usage")
+            if _in_container:
+                options.add_argument("--disable-gpu")
+                options.add_argument("--disable-extensions")
+            if chrome_bin and os.path.isfile(chrome_bin):
+                options.binary_location = chrome_bin
             if headless:
                 options.add_argument("--window-size=1920,1080")
                 options.add_argument("--disable-gpu")
@@ -962,12 +1007,72 @@ _searxng_last_restart_mono = 0.0
 _SEARXNG_RESTART_COOLDOWN_SEC = 900  # at most one docker restart / 15 min
 
 
+def _host_is_local(host: str | None) -> bool:
+    h = (host or "").lower().strip("[]")
+    return h in ("localhost", "127.0.0.1", "::1", "")
+
+
+def service_url_host_port(url: str, local_default: int = 8888) -> tuple[str, int]:
+    """
+    Host + port for a service URL.
+
+    Critical for cloud: ``https://foo.onrender.com`` has no explicit port, so
+    ``urlparse(...).port`` is None — must use 443 (https) / 80 (http), NOT the
+    local Docker default (8888/7000).
+    """
+    parsed = urlparse((url or "").strip() or "http://localhost")
+    host = parsed.hostname or "localhost"
+    if parsed.port:
+        return host, int(parsed.port)
+    scheme = (parsed.scheme or "http").lower()
+    if scheme == "https":
+        return host, 443
+    if scheme == "http" and _host_is_local(host):
+        return host, int(local_default)
+    if scheme == "http":
+        return host, 80
+    return host, int(local_default)
+
+
+def service_reachable(url: str, local_default: int = 8888, timeout: float = 2.0) -> bool:
+    """
+    True when the service URL is reachable.
+
+    Local → TCP connect. Remote (Render etc.) → HTTP GET on the URL itself
+    (correct TLS port; also wakes sleeping free-tier services).
+    """
+    import socket
+    import requests as _requests
+
+    host, port = service_url_host_port(url, local_default)
+    if _host_is_local(host):
+        try:
+            with socket.create_connection((host, port), timeout=timeout):
+                return True
+        except OSError:
+            return False
+    try:
+        # Any HTTP response means the host is up (403/404 still = reachable).
+        r = _requests.get(url.rstrip("/") + "/", timeout=timeout, allow_redirects=True)
+        return r.status_code < 500
+    except Exception:
+        try:
+            with socket.create_connection((host, port), timeout=timeout):
+                return True
+        except OSError:
+            return False
+
+
 def _try_restart_searxng_container(reason: str = "") -> bool:
     """
     One-shot `docker restart searxng` when upstreams are CAPTCHA-dead but the
     port is still open. Throttled so we never flap the container every query.
+    Local Docker only — never on remote SEARXNG_URL (Render).
     """
     global _searxng_last_restart_mono, _searxng_known_up
+    host, _ = service_url_host_port(_SEARXNG_URL, 8888)
+    if not _host_is_local(host):
+        return False
     now = time.monotonic()
     if now - _searxng_last_restart_mono < _SEARXNG_RESTART_COOLDOWN_SEC:
         return False
@@ -997,17 +1102,8 @@ def _try_restart_searxng_container(reason: str = "") -> bool:
 
 
 def _searxng_port_open(timeout: float = 1.5) -> bool:
-    """True if something is listening on the SearXNG URL host:port."""
-    import socket
-    from urllib.parse import urlparse
-    parsed = urlparse(_SEARXNG_URL)
-    host = parsed.hostname or "localhost"
-    port = parsed.port or 8888
-    try:
-        with socket.create_connection((host, port), timeout=timeout):
-            return True
-    except OSError:
-        return False
+    """True if SearXNG URL is reachable (scheme-aware port; HTTP for remote)."""
+    return service_reachable(_SEARXNG_URL, local_default=8888, timeout=timeout)
 
 
 def ensure_searxng(force: bool = False) -> bool:
@@ -1015,8 +1111,8 @@ def ensure_searxng(force: bool = False) -> bool:
     Make SearXNG reachable with zero human steps.
 
     1. If already up → True
-    2. Else try `docker start searxng` or create the container (same as the .bat)
-    3. Wait briefly for the port
+    2. Remote SEARXNG_URL (Render) → HTTP probe only (no Docker)
+    3. Local → try `docker start searxng` or create the container
     4. If Docker unavailable → False (caller should use DuckDuckGo)
 
     Throttled so we don't hammer Docker on every SERP page.
@@ -1039,6 +1135,33 @@ def ensure_searxng(force: bool = False) -> bool:
         if not force and (now - _searxng_last_ensure) < 45:
             return False
         _searxng_last_ensure = now
+
+        host, _ = service_url_host_port(_SEARXNG_URL, 8888)
+        if not _host_is_local(host):
+            # Cloud / remote — wait for cold start (free Render sleep), no Docker.
+            import requests as _requests
+            print(f"🔍 [SEARXNG] Remote URL not ready — waking {_SEARXNG_URL}…")
+            for _ in range(24):
+                try:
+                    probe = _requests.get(
+                        f"{_SEARXNG_URL}/search",
+                        params={
+                            "q": "test", "format": "json",
+                            "categories": "general", "language": "en",
+                        },
+                        timeout=12,
+                        headers={"Accept": "application/json"},
+                    )
+                    if probe.status_code == 200:
+                        _searxng_known_up = True
+                        print(f"🔍 [SEARXNG] Remote OK — {_SEARXNG_URL}")
+                        return True
+                except Exception:
+                    pass
+                time.sleep(2.0)
+            print(f"🔍 [SEARXNG] Remote still down — {_SEARXNG_URL}")
+            _searxng_known_up = False
+            return False
 
         import subprocess
         searxng_dir = os.path.normpath(
@@ -1278,22 +1401,13 @@ _OPENSERP_ENGINES = "bing,yandex,ecosia,duckduckgo"
 
 
 def _openserp_port_open(timeout: float = 1.5) -> bool:
-    import socket
-    from urllib.parse import urlparse
-    parsed = urlparse(_OPENSERP_URL)
-    host = parsed.hostname or "localhost"
-    port = parsed.port or 7000
-    try:
-        with socket.create_connection((host, port), timeout=timeout):
-            return True
-    except OSError:
-        return False
+    return service_reachable(_OPENSERP_URL, local_default=7000, timeout=timeout)
 
 
 def ensure_openserp(force: bool = False) -> bool:
     """
-    Make OpenSERP reachable (Docker) with zero human steps.
-    Same unattended pattern as ensure_searxng — optional free SERP fallback.
+    Make OpenSERP reachable with zero human steps.
+    Remote OPENSERP_URL → HTTP wake only. Local → Docker auto-start.
     """
     global _openserp_last_ensure, _openserp_known_up
 
@@ -1312,6 +1426,38 @@ def ensure_openserp(force: bool = False) -> bool:
         if not force and (now - _openserp_last_ensure) < 45:
             return False
         _openserp_last_ensure = now
+
+        host, _ = service_url_host_port(_OPENSERP_URL, 7000)
+        if not _host_is_local(host):
+            import requests as _requests
+            print(f"🟣 [OPENSERP] Remote URL not ready — waking {_OPENSERP_URL}…")
+            for _ in range(24):
+                try:
+                    probe = _requests.get(f"{_OPENSERP_URL}/health", timeout=10)
+                    if probe.status_code < 500:
+                        _openserp_known_up = True
+                        print(f"🟣 [OPENSERP] Remote OK — {_OPENSERP_URL}")
+                        return True
+                except Exception:
+                    try:
+                        probe = _requests.get(
+                            f"{_OPENSERP_URL}/mega/search",
+                            params={
+                                "text": "test", "limit": 1, "mode": "any",
+                                "engines": "bing",
+                            },
+                            timeout=20,
+                        )
+                        if probe.status_code in (200, 503):
+                            _openserp_known_up = True
+                            print(f"🟣 [OPENSERP] Remote OK — {_OPENSERP_URL}")
+                            return True
+                    except Exception:
+                        pass
+                time.sleep(2.0)
+            print(f"🟣 [OPENSERP] Remote still down — {_OPENSERP_URL}")
+            _openserp_known_up = False
+            return False
 
         import subprocess
 

@@ -92,20 +92,11 @@ stat_cards([
 ])
 
 # ── SearXNG status banner ──────────────────────────────────────────────────────
-import socket as _socket
-from urllib.parse import urlparse as _urlparse
+from sources.utils import service_reachable, service_url_host_port
 
-_searxng_url  = os.getenv("SEARXNG_URL", "http://localhost:8888").strip()
-_parsed       = _urlparse(_searxng_url)
-_searxng_host = _parsed.hostname or "localhost"
-_searxng_port = _parsed.port    or 8888
-_searxng_ok   = False
-try:
-    _sock = _socket.create_connection((_searxng_host, _searxng_port), timeout=2)
-    _sock.close()
-    _searxng_ok = True
-except Exception:
-    pass
+_searxng_url = os.getenv("SEARXNG_URL", "http://localhost:8888").strip()
+_searxng_host, _searxng_port = service_url_host_port(_searxng_url, 8888)
+_searxng_ok = service_reachable(_searxng_url, local_default=8888, timeout=3.0)
 
 if _searxng_ok:
     st.success(f"✅ **SearXNG running** at `{_searxng_host}:{_searxng_port}` — email search (L4) enabled.")

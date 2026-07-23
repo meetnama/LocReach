@@ -1,6 +1,6 @@
 # LocReach Lead Discovery — Project Memory
 
-_Last updated: 2026-07-23 (session 40 — published to GitHub + Render; Docker stack with Chrome, SearXNG, OpenSERP)_
+_Last updated: 2026-07-23 (session 41 — cloud SERP port fix, Chrome Docker flags, serp_summary/geo tighten)_
 
 **Read this first in every new session.** This file is the authoritative snapshot of how the app works *today*. Older user-facing docs (`Setup/README.txt`, desktop `Chats.txt`, Arabic summaries) may still describe the **old 4-step pipeline** (`discovered_domains` + `verified_companies` + separate Site Scanner). The live app is a **3-step unified pipeline** with a single `domains` table.
 
@@ -65,7 +65,7 @@ _Last updated: 2026-07-23 (session 40 — published to GitHub + Render; Docker s
 | 1 | Directory / industry-dir SERP queries first in bank | `directory_search_queries` → `_build_template_bank` | (feeds #3) |
 | 2 | Google AI Overview + Local Pack (Maps businesses) | `_PARSE_AI_OVERVIEW_JS` / `_PARSE_LOCAL_PACK_JS`; raced ∥ SearXNG/OpenSERP on page-1 via `google_ai_overview` | `ai_overview_verified` / `local_pack_verified` |
 | 3 | Directory / Top-N scrape | `sources/directory_scrape.py` (`is_directory_scrape_target`, `scrape_directory_companies`); hosts: Clutch, GoodFirms, **Proz**, TranslationCafe, TranslationDirectory, GALA, ATA, … | `directory_verified` |
-| 4 | SERP title+snippet: industry ≥1 keyword + location | `serp_summary_verified` / `serp_summary_has_industry` in `step1_qualify.py` | `serp_summary_verified` |
+| 4 | SERP title+snippet: **strong** industry marker + location (`require_signal`) | `serp_summary_verified` / `serp_summary_has_industry` in `step1_qualify.py` | `serp_summary_verified` |
 | 5 | **Normal path only after priority pass** | `cheap_screen_candidate` → `_qualify_one` / `qualify_domain_fast` | score/geo reasons |
 
 - Hygiene for verified paths: `ai_overview_screen` (blocked / duplicate / foreign ccTLD only) → `qualify_from_ai_overview(..., source=…)`
@@ -88,7 +88,7 @@ _Last updated: 2026-07-23 (session 40 — published to GitHub + Render; Docker s
 |-------|----------|
 | **Template bank** | Directory queries **first** → primary → expansion → rotation (`_build_template_bank`) |
 | **Engine race (page-1)** | SearXNG ∥ OpenSERP ∥ **Google panels**; panels prepended; then Google gap-fill → Bing → DDG |
-| **Workers** | Fixed **200** |
+| **Workers** | Local **200**; Render/cloud **8** (max 12) |
 | **Check budget** | `min(15000, max(target×25, 800))` |
 | **Diminishing returns** | ≥3 terms / 15‑min, &lt;12 unique-new/hr → stop |
 | **UI stats** | This-run only; no full-DB embed on Step 1 |
@@ -251,6 +251,28 @@ Sales_Tool/                              # Git root → github.com/meetnama/LocR
 - Prefer re-private GitHub once Render GitHub App is granted access to LocReach (prospect data in public repo)
 
 **Operator UX:** end user works only at https://locreach.onrender.com
+
+**Handoff stop point:** session 40 publish complete. Session 41 fixed cloud SERP/Chrome/geo bugs (see below).
+
+---
+
+## Session 41 (2026-07-23) — full-repo bug sweep (cloud + Step 1)
+
+**Fixed (local → push)**
+- Cloud SERP: `service_url_host_port` / `service_reachable` — HTTPS Render URLs use port **443**, not 8888/7000; remote `ensure_*` wakes via HTTP (no Docker)
+- Chrome in Docker: `--no-sandbox`, `--disable-dev-shm-usage`, `CHROME_BIN`, Linux version detect
+- Cloud workers capped (8/12) to reduce free-tier OOM
+- `serp_summary`: strong industry marker + geo `require_signal` (no thin-blurb auto-pass)
+- Geo: word-boundary city match; city alone needs country/adj (or city+phone / HQ)
+- AIO panels run after free engines with `extra_organic` fill; SERP merge capped to `num`
+- UAE `site:.ae` expansion; heartbeat only when `LOCREACH_HEARTBEAT_PORT` set; `.dockerignore`
+- Tests: 48 passed (`test_service_url` + tightened `test_serp_summary`)
+
+**Still open (ops / product)**
+- Free Render: no persistent disk; sibling sleep; Chrome OOM risk under heavy Selenium
+- Heartbeat 180s long Step 1 live-validate (local)
+- Demote old pre-gate / junk `serp_summary_verified` rows in DB
+- Re-private GitHub after Render App access
 
 ---
 
