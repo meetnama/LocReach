@@ -31,9 +31,9 @@ _Last updated: 2026-07-23 (session 40 — published to GitHub + Render; Docker s
 |-------|--------|
 | **GitHub** | https://github.com/meetnama/LocReach (currently **public**; contains `leads.db` — prefer private + Render GitHub App access when possible) |
 | **Render workspace** | Ahmed's workspace (`tea-d9gig6uigcvs73fq7fug`), region **Frankfurt**, plan **free** |
-| **App service** | `locreach` — Docker + Chrome (`localization-leads/Dockerfile`) → https://locreach.onrender.com |
-| **SearXNG** | `locreach-searxng` — Docker (`searxng/Dockerfile` + `settings.yml`) → https://locreach-searxng.onrender.com |
-| **OpenSERP** | `locreach-openserp` — Docker (`openserp/Dockerfile`) → https://locreach-openserp.onrender.com |
+| **App service** | `locreach` (`srv-d9h2cfjbc2fs739id8i0`) — Docker + Chrome (`localization-leads/Dockerfile`) → https://locreach.onrender.com |
+| **SearXNG** | `locreach-searxng` (`srv-d9h2cbjtqb8s73eg15cg`) — Docker (`searxng/Dockerfile` + `settings.yml`) → https://locreach-searxng.onrender.com |
+| **OpenSERP** | `locreach-openserp` (`srv-d9h2cdfavr4c73aipfk0`) — Docker (`openserp/Dockerfile`) → https://locreach-openserp.onrender.com |
 | **Blueprint** | `render.yaml` at repo root (documents the three services) |
 | **Cloud env** | `GROQ_API_KEY`, `LINKEDIN_EMAIL`, `LINKEDIN_PASSWORD`, `SEARXNG_URL`, `OPENSERP_URL` (app points at the two Render URLs, not localhost) |
 | **Auto-deploy** | Push to `main` → Render rebuilds |
