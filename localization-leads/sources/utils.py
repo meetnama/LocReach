@@ -12,6 +12,21 @@ from urllib.parse import urlparse, urlencode
 from config import BLOCKED_DOMAINS, FREE_EMAIL_DOMAINS, RELEVANCE_KEYWORDS, TLD_COUNTRY, INDUSTRY_KEYWORDS
 
 
+def running_on_cloud() -> bool:
+    """
+    True on Render / cloud LocReach.
+
+    Prefer explicit flags; also treat remote *.onrender.com SERP URLs as cloud
+    (Render sometimes omits RENDER= inside custom Docker images).
+    """
+    if os.getenv("RENDER") or os.getenv("LOCREACH_CLOUD"):
+        return True
+    for key in ("SEARXNG_URL", "OPENSERP_URL", "RENDER_EXTERNAL_URL"):
+        if "onrender.com" in (os.getenv(key) or "").lower():
+            return True
+    return False
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Google search via undetected-chromedriver
 # ─────────────────────────────────────────────────────────────────────────────
@@ -149,11 +164,7 @@ def _get_uc_driver():
         or ""
     ).strip()
     # Container / low-RAM: required for headless Chrome in Docker (Render).
-    _in_container = (
-        os.path.exists("/.dockerenv")
-        or bool(os.getenv("RENDER"))
-        or bool(os.getenv("LOCREACH_CLOUD"))
-    )
+    _in_container = os.path.exists("/.dockerenv") or running_on_cloud()
 
     for profile_name in (
         "LocReach", "LocReach_2", "LocReach_3",
@@ -1395,7 +1406,8 @@ _openserp_last_ensure = 0.0
 _openserp_known_up = False
 _openserp_call_lock = threading.Lock()
 _openserp_last_call_mono = 0.0
-_OPENSERP_MIN_GAP_SEC = 0.8
+# Cloud free-tier OpenSERP hits Google/Bing rate limits quickly — wider gap.
+_OPENSERP_MIN_GAP_SEC = 2.5 if running_on_cloud() else 0.8
 # Prefer non-Google engines when LocReach already hit Google CAPTCHA
 _OPENSERP_ENGINES = "bing,yandex,ecosia,duckduckgo"
 
@@ -1553,28 +1565,40 @@ def openserp_search(query: str, num: int = 10, page: int = 1,
         raise RuntimeError("OpenSERP unreachable after auto-start attempt")
 
     start = max(0, (page - 1) * max(num, 10))
-    with _openserp_call_lock:
-        gap = time.monotonic() - _openserp_last_call_mono
-        if gap < _OPENSERP_MIN_GAP_SEC:
-            time.sleep(_OPENSERP_MIN_GAP_SEC - gap)
-        try:
-            resp = _requests.get(
-                f"{_OPENSERP_URL}/mega/search",
-                params={
-                    "text": query,
-                    "limit": min(num, 20),
-                    "start": start,
-                    "mode": "any",
-                    "engines": _OPENSERP_ENGINES,
-                    "lang": "EN",
-                },
-                timeout=45,
-            )
-            _openserp_last_call_mono = time.monotonic()
-        except Exception as exc:
-            _openserp_known_up = False
-            _status("down", str(exc))
-            raise RuntimeError(f"OpenSERP request failed ({exc})") from exc
+    params = {
+        "text": query,
+        "limit": min(num, 20),
+        "start": start,
+        "mode": "any",
+        "engines": _OPENSERP_ENGINES,
+        "lang": "EN",
+    }
+    resp = None
+    for attempt in range(2):
+        with _openserp_call_lock:
+            gap = time.monotonic() - _openserp_last_call_mono
+            if gap < _OPENSERP_MIN_GAP_SEC:
+                time.sleep(_OPENSERP_MIN_GAP_SEC - gap)
+            try:
+                resp = _requests.get(
+                    f"{_OPENSERP_URL}/mega/search",
+                    params=params,
+                    timeout=45,
+                )
+                _openserp_last_call_mono = time.monotonic()
+            except Exception as exc:
+                _openserp_known_up = False
+                _status("down", str(exc))
+                raise RuntimeError(f"OpenSERP request failed ({exc})") from exc
+
+        if resp.status_code != 429:
+            break
+        print(f"🟣 [OPENSERP] HTTP 429 for '{query}' — backoff try {attempt + 1}")
+        time.sleep(6.0 * (attempt + 1))
+
+    if resp is None:
+        _status("down", "no response")
+        return []
 
     if resp.status_code == 503:
         detail = ""
@@ -1584,6 +1608,11 @@ def openserp_search(query: str, num: int = 10, page: int = 1,
             detail = resp.text[:200]
         print(f"🟣 [OPENSERP] blocked/unavailable for '{query}': {detail}")
         _status("blocked", detail or "HTTP 503")
+        return []
+
+    if resp.status_code == 429:
+        _status("blocked", "HTTP 429 Too Many Requests")
+        print(f"🟣 [OPENSERP] still rate-limited for '{query}' after retry")
         return []
 
     if resp.status_code >= 400:

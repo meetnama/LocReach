@@ -23,6 +23,7 @@ from sources.utils import (
     duckduckgo_search, bing_search,
     ensure_searxng, ensure_openserp, get_domain, _captcha_flag,
     CaptchaHit, google_in_cooldown, google_cooldown_remaining,
+    running_on_cloud,
 )
 from sources.directory_scrape import (
     is_directory_scrape_target, scrape_directory_companies,
@@ -283,9 +284,11 @@ MAJOR_CITIES = {
 
 _PAGE_SIZE = 10  # match typical SERP page size (15 falsely looked "short" and ended every term)
 # Cap workers on Render free tier to avoid Chrome/HTTP OOM; local stays aggressive.
-_ON_CLOUD = bool(os.getenv("RENDER") or os.getenv("LOCREACH_CLOUD"))
+_ON_CLOUD = running_on_cloud()
 _MAX_WORKERS = 12 if _ON_CLOUD else 200
 _DEFAULT_WORKERS = 8 if _ON_CLOUD else 200
+# When free engines wake cold / rate-limit, retry page-1 before burning the term bank.
+_EMPTY_SERP_RETRIES = 3 if _ON_CLOUD else 1
 _MAX_META_PAGES = 10  # deeper free-engine pagination when hunting volume
 # Only stop paginating when a page returns fewer than this many hits (not when < page_size).
 _MIN_PAGE_HITS = 5
@@ -1209,6 +1212,7 @@ def _run_step1(queries: list, num: int, q_out: queue.Queue,
                     empty_reason = ""
                     last_chain = ""
                     page = 1
+                    empty_serp_retries = 0
                     pending_google_resume = False
                     was_in_cooldown = google_in_cooldown() if use_google else False
                     term_used_fallback = False
@@ -1302,8 +1306,26 @@ def _run_step1(queries: list, num: int, q_out: queue.Queue,
                             )
 
                         if not page_results:
+                            # Cloud: SearXNG/OpenSERP often return empty while waking
+                            # or under 429 — retry same page before abandoning the term.
+                            if (
+                                page == 1
+                                and empty_serp_retries < _EMPTY_SERP_RETRIES
+                                and not stop_event.is_set()
+                            ):
+                                empty_serp_retries += 1
+                                wait_s = 4.0 * empty_serp_retries
+                                q_out.put((
+                                    "engine_note",
+                                    f"SERP empty/blocked — retry {empty_serp_retries}/"
+                                    f"{_EMPTY_SERP_RETRIES} in {int(wait_s)}s "
+                                    f"({last_chain or 'warming engines'})",
+                                ))
+                                time.sleep(wait_s)
+                                continue
                             break
 
+                        empty_serp_retries = 0
                         raw_count += len(page_results)
                         batch = []
 

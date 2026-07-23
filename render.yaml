@@ -13,6 +13,8 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: "3.12.8"
+      - key: LOCREACH_CLOUD
+        value: "1"
       - key: SEARXNG_URL
         fromService:
           name: locreach-searxng

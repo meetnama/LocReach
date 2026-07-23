@@ -31,3 +31,21 @@ def test_http_remote_uses_80_not_local_default():
 def test_explicit_nondefault_port_kept():
     host, port = service_url_host_port("https://example.com:8443", 8888)
     assert port == 8443
+
+
+def test_running_on_cloud_detects_onrender_urls(monkeypatch):
+    from sources.utils import running_on_cloud
+
+    monkeypatch.delenv("RENDER", raising=False)
+    monkeypatch.delenv("LOCREACH_CLOUD", raising=False)
+    monkeypatch.delenv("RENDER_EXTERNAL_URL", raising=False)
+    monkeypatch.setenv("SEARXNG_URL", "https://locreach-searxng.onrender.com")
+    monkeypatch.setenv("OPENSERP_URL", "https://locreach-openserp.onrender.com")
+    assert running_on_cloud() is True
+
+    monkeypatch.setenv("SEARXNG_URL", "http://localhost:8888")
+    monkeypatch.setenv("OPENSERP_URL", "http://localhost:7000")
+    assert running_on_cloud() is False
+
+    monkeypatch.setenv("LOCREACH_CLOUD", "1")
+    assert running_on_cloud() is True
