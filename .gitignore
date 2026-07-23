@@ -1,0 +1,38 @@
+﻿# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+venv/
+.venv/
+
+# Secrets — never commit
+.env
+**/.env
+
+# Browser / caches
+.chrome_profile/
+.browser_profile/
+.pytest_cache/
+.repowise/
+
+# Logs & exports
+**/logs/
+exports/
+*_results_*.html
+lochere_full_db_*.xlsx
+
+# OS / IDE / junk
+.DS_Store
+Thumbs.db
+desktop.ini
+folderico-black.ico
+.idea/
+.vscode/
+*.swp
+
+# Keep DB for cloud parity (forced below if nested ignore blocks it)
+
+.git_nested_backup_locreach/
+localization-leads/.git_nested_backup_locreach/
+

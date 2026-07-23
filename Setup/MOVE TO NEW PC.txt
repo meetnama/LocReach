@@ -1,0 +1,98 @@
+﻿====================================================
+  LOCREACH — MOVE TO A NEW PC
+====================================================
+
+Follow this when you want to run LocReach on a different computer.
+The whole app is portable EXCEPT the Python "venv" folder, which is
+rebuilt automatically on the new PC. Your data (leads.db) and your
+keys/login (.env) move with the folder.
+
+
+----------------------------------------------------
+ STEP A — ON THE OLD PC  (copy the folder)
+----------------------------------------------------
+
+  Copy the entire  Sales_Tool  folder to the new PC (USB drive, network
+  share, cloud, etc.). It can go on ANY drive or path on the new PC
+  (C:\, D:\, Desktop, ...) — the .bat files find their own location.
+
+  COPY THESE (essential):
+    Sales_Tool\localization-leads\   ... the app code
+    Sales_Tool\localization-leads\.env        ... API keys + LinkedIn login
+    Sales_Tool\localization-leads\leads.db    ... all your discovered data
+    Sales_Tool\searxng\settings.yml           ... SearXNG config
+    Sales_Tool\Setup\                         ... these launchers + guides
+
+  YOU CAN SKIP THESE (regenerated automatically — saves ~1 GB):
+    Sales_Tool\localization-leads\venv\            (~500 MB) rebuilt by step 4
+    Sales_Tool\localization-leads\.chrome_profile\ (~580 MB) browser/LinkedIn
+                            session — OPTIONAL: copy it to keep your
+                            LinkedIn login; skip it and you log in once.
+    any __pycache__ folders                 Python rebuilds these.
+
+  (Copying the whole folder including venv is also fine — step 4
+   detects a venv from another PC and rebuilds it. Skipping it just
+   makes the copy smaller and faster.)
+
+
+----------------------------------------------------
+ STEP B — ON THE NEW PC  (set up + run)
+----------------------------------------------------
+
+  Open the  Sales_Tool\Setup  folder and run, IN ORDER:
+
+    1 - Get Python.bat       Install Python 3.11+  (TICK "Add Python
+                             to PATH"). Any version 3.11–3.14 works.
+    2 - Get Chrome.bat       Install Google Chrome (skip if present).
+    3 - Get Docker.bat       OPTIONAL — SearXNG / OpenSERP search.
+    4 - Install LocReach.bat Builds the Python environment for THIS PC
+                             and installs every package. Re-run anytime.
+    5 - Start SearXNG.bat    OPTIONAL — start the local search engine
+                             (needs Docker Desktop open first).
+    6 - Start LocReach.bat   Launches the app in your browser.
+    7 - Start OpenSERP.bat   OPTIONAL — free SERP fallback.
+
+  That's it. The app opens at  http://localhost:8501
+
+
+----------------------------------------------------
+ WHAT CARRIES OVER
+----------------------------------------------------
+
+  leads.db  — every discovered domain, company, person, and lead.
+  .env      — your API keys (Groq) + LinkedIn email/password +
+              SEARXNG_URL. Keep this file; it is how the app logs in.
+
+  Nothing needs re-typing. If leads.db is present, the app continues
+  exactly where you left off.
+
+
+----------------------------------------------------
+ NOTES & TROUBLESHOOTING
+----------------------------------------------------
+
+  * "python is not recognized" when running step 4
+      -> Python was not added to PATH. Re-run "1 - Get Python.bat"
+         and tick "Add Python to PATH", or reinstall Python with
+         that box checked. Then run step 4 again.
+
+  * Chrome / LinkedIn acts strangely after the move
+      -> Delete the  localization-leads\.chrome_profile  folder.
+         It is just a cached browser session and is rebuilt on the
+         next run (you re-enter the LinkedIn login once).
+
+  * Step 3 emails show "PatVfy ~" or "PatVfy ?" instead of "✓"
+      -> Your network blocks outbound SMTP (port 25), so mailboxes
+         can't be hard-confirmed. This is normal on home/office Wi-Fi.
+         The emails are still generated from the verified pattern.
+         On a network with port 25 open they upgrade to "PatVfy ✓".
+
+  * SearXNG won't start
+      -> Open Docker Desktop first and wait until it says "Running",
+         then run "5 - Start SearXNG.bat" again.
+
+  * Want a totally clean start instead of keeping data
+      -> Just delete leads.db before/after the move; the app
+         recreates an empty database on first launch.
+
+====================================================

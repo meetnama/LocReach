@@ -1,0 +1,22 @@
+# LocReach Lead Discovery — Python dependencies
+# Re-run "4 - Install LocReach.bat" after editing this file.
+
+# ── Core app ────────────────────────────────────────────────────────────────
+streamlit>=1.30.0          # web UI (all 4 steps)
+python-dotenv>=1.0.0       # loads .env (API keys, LinkedIn creds, SEARXNG_URL)
+requests>=2.31.0           # all HTTP scraping / SearXNG / DuckDuckGo / Groq calls
+openpyxl>=3.1.0            # per-run Excel exports on Step pages
+pandas>=2.0.0              # Database view tables / filters
+
+# ── Browser automation (Step 1 Google, Step 2 scan, Step 3 LinkedIn page) ─────
+undetected-chromedriver>=3.5.0
+selenium>=4.9.0
+setuptools>=65.0           # provides distutils for undetected-chromedriver on Python 3.12+
+
+# ── Step 4 email verification ────────────────────────────────────────────────
+dnspython>=2.4.0           # MX-record lookups in smtp_verifier.py — WITHOUT THIS every
+                           # email verifies as "bad" and L2/L3 SMTP layers do nothing
+pdfplumber>=0.10.0         # optional: scan linked PDFs for emails in website_crawler.py
+
+# ── Test suite ────────────────────────────────────────────────────────────────
+pytest>=8.0                # unit tests for scoring + DB functions (run: venv\Scripts\python.exe -m pytest tests/)

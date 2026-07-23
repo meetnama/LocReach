@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+
+# Virtual environment
+venv/
+.venv/
+
+# Streamlit / Chrome
+.chrome_profile/
+.browser_profile/
+
+# Secrets — never commit
+.env
+
+# Database (regenerated; contains real prospect data)
+leads.db
+
+# Generated exports
+exports/
+*_results_*.html
+lochere_full_db_*.xlsx
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp

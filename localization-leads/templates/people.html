@@ -1,0 +1,285 @@
+{% extends '_base.html' %}
+{% from '_components.html' import card, chip, progress_bar, log_box, primary_button, secondary_button, danger_button, banner %}
+
+{% block title %}LocReach — Step 2: People{% endblock %}
+
+{% block content %}
+<div x-data="peoplePage()" class="space-y-6">
+
+  {# ── Page header ─────────────────────────────────────────────────── #}
+  <div class="flex items-center gap-3">
+    <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-signal-600 text-white">
+      <i data-lucide="users" class="h-5 w-5"></i>
+    </div>
+    <div>
+      <h1 class="text-2xl font-bold text-slate-900 dark:text-white">Step 2 — Find People</h1>
+      <p class="text-sm text-slate-500 dark:text-slate-400">Classify companies, X-Ray LinkedIn, and filter by target titles.</p>
+    </div>
+  </div>
+
+  {# ── Step pipeline ───────────────────────────────────────────────── #}
+  <div class="grid grid-cols-3 gap-3">
+    <div class="rounded-xl border border-slate-200 bg-white px-4 py-3 text-center dark:border-slate-800 dark:bg-slate-900">
+      <div class="text-sm font-bold text-slate-400">Step 1</div>
+      <div class="text-xs text-slate-500">Find &amp; Qualify</div>
+    </div>
+    <div class="rounded-xl border-2 border-reach-500 bg-reach-50 px-4 py-3 text-center dark:bg-reach-950/50">
+      <div class="text-sm font-bold text-reach-600 dark:text-reach-400">Step 2</div>
+      <div class="text-xs text-slate-500 dark:text-slate-400">Find People</div>
+    </div>
+    <div class="rounded-xl border border-slate-200 bg-white px-4 py-3 text-center dark:border-slate-800 dark:bg-slate-900">
+      <div class="text-sm font-bold text-slate-400">Step 3</div>
+      <div class="text-xs text-slate-500">Find Emails</div>
+    </div>
+  </div>
+
+  <div class="grid gap-6 lg:grid-cols-4">
+
+    {# ── Sidebar: status ───────────────────────────────────────────── #}
+    <aside class="space-y-4 lg:col-span-1">
+      <div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div class="border-b border-slate-100 px-4 py-3 dark:border-slate-800">
+          <h2 class="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
+            <i data-lucide="bar-chart-2" class="h-4 w-4 text-slate-400"></i>
+            Status
+          </h2>
+        </div>
+        <div class="space-y-3 p-4">
+          <div class="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-800">
+            <span class="text-xs text-slate-500">To search (queued)</span>
+            <span id="metric-todo" class="text-sm font-bold text-slate-900 dark:text-white">{{ todo_count | default(0) }}</span>
+          </div>
+          <div class="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-800">
+            <span class="text-xs text-slate-500">Already searched</span>
+            <span id="metric-done" class="text-sm font-bold text-slate-900 dark:text-white">{{ already_done | default(0) }}</span>
+          </div>
+          <div class="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-800">
+            <span class="text-xs text-slate-500">Qualified domains</span>
+            <span id="metric-qualified" class="text-sm font-bold text-slate-900 dark:text-white">{{ total_qualified | default(0) }}</span>
+          </div>
+          <div class="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-800">
+            <span class="text-xs text-slate-500">People in DB</span>
+            <span id="metric-people" class="text-sm font-bold text-slate-900 dark:text-white">{{ people_count | default(0) }}</span>
+          </div>
+          <hr class="border-slate-200 dark:border-slate-700">
+          <button type="button" id="btn-reset" @click="resetSearch()" :disabled="running"
+            class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-reach-500 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700">
+            Reset all — re-search
+          </button>
+          <label class="flex cursor-pointer items-start gap-2">
+            <input type="checkbox" x-model="skipLiPage" class="mt-0.5 rounded border-slate-300 text-reach-600 focus:ring-reach-500">
+            <span class="text-xs text-slate-600 dark:text-slate-400">Skip LinkedIn /people page <span class="block text-slate-400">(~5× faster, X-Ray + website only)</span></span>
+          </label>
+          <a href="/" class="flex items-center gap-1.5 text-xs text-reach-600 hover:underline dark:text-reach-400">
+            <i data-lucide="arrow-left" class="h-3 w-3"></i>
+            Back to Step 1
+          </a>
+        </div>
+      </div>
+    </aside>
+
+    {# ── Main area ─────────────────────────────────────────────────── #}
+    <div class="space-y-5 lg:col-span-3">
+
+      {# SearXNG status #}
+      {% if searxng_ok | default(false) %}
+      {{ banner('success', 'SearXNG running at ' ~ searxng_host ~ ':' ~ searxng_port ~ ' — LinkedIn X-Ray enabled. No CAPTCHAs.') }}
+      {% else %}
+      {{ banner('warning', 'SearXNG not reachable — LinkedIn X-Ray will be skipped. Start 5 - Start SearXNG.bat to enable.') }}
+      {% endif %}
+
+      {# LinkedIn login status #}
+      <div x-show="liStatus" role="alert"
+        class="flex items-start gap-3 rounded-xl border px-4 py-3"
+        :class="{
+          'border-qualified-300 bg-qualified-50 text-qualified-900 dark:border-qualified-800 dark:bg-qualified-950 dark:text-qualified-100': liStatus.startsWith('✅'),
+          'border-pipeline-300 bg-pipeline-50 text-pipeline-900 dark:border-pipeline-800 dark:bg-pipeline-950 dark:text-pipeline-100': liStatus.startsWith('⚠️'),
+          'border-signal-300 bg-signal-50 text-signal-900 dark:border-signal-800 dark:bg-signal-950 dark:text-signal-100': liStatus && !liStatus.startsWith('✅') && !liStatus.startsWith('⚠️')
+        }">
+        <p class="text-sm" x-text="liStatus"></p>
+      </div>
+
+      {# Run status #}
+      <div x-show="statusMsg" role="alert"
+        class="flex items-start gap-3 rounded-xl border px-4 py-3"
+        :class="{
+          'border-qualified-300 bg-qualified-50 text-qualified-900 dark:border-qualified-800 dark:bg-qualified-950 dark:text-qualified-100': statusType === 'success',
+          'border-pipeline-300 bg-pipeline-50 text-pipeline-900 dark:border-pipeline-800 dark:bg-pipeline-950 dark:text-pipeline-100': statusType === 'warning',
+          'border-red-300 bg-red-50 text-red-900 dark:border-red-800 dark:bg-red-950 dark:text-red-100': statusType === 'error',
+          'border-signal-300 bg-signal-50 text-signal-900 dark:border-signal-800 dark:bg-signal-950 dark:text-signal-100': statusType === 'info'
+        }">
+        <p class="flex-1 text-sm" x-text="statusMsg"></p>
+      </div>
+
+      {# Controls #}
+      <div class="flex flex-wrap items-center gap-3">
+        <button type="button" id="btn-run" @click="startRun()" :disabled="running || !ready"
+          class="inline-flex items-center gap-2 rounded-lg bg-reach-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-reach-700 focus:outline-none focus:ring-2 focus:ring-reach-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:focus:ring-offset-slate-950">
+          <i data-lucide="play" class="h-4 w-4"></i>
+          Find People
+        </button>
+        <button type="button" id="btn-stop" @click="stopRun()" :disabled="!running"
+          class="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-reach-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 dark:focus:ring-offset-slate-950">
+          <i data-lucide="square" class="h-4 w-4"></i>
+          Stop
+        </button>
+      </div>
+
+      {# Progress #}
+      <div x-show="running || done">
+        {{ progress_bar('s2-progress', indeterminate=false, value=0) }}
+      </div>
+
+      {# Stats #}
+      <div x-show="stats.processed > 0 || running" class="grid grid-cols-3 gap-3">
+        <div class="rounded-xl border border-slate-200 bg-white p-4 text-center shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <div class="text-2xl font-bold text-signal-500"><span x-text="stats.processed">0</span> / <span x-text="stats.total">0</span></div>
+          <div class="text-xs text-slate-500">Processed</div>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-white p-4 text-center shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <div class="text-2xl font-bold text-qualified-500" x-text="stats.people">0</div>
+          <div class="text-xs text-slate-500">People Found</div>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-white p-4 text-center shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <div class="text-2xl font-bold text-pipeline-500" x-text="stats.noPeople">0</div>
+          <div class="text-xs text-slate-500">No People</div>
+        </div>
+      </div>
+
+      {# People results table #}
+      <div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div class="border-b border-slate-100 px-5 py-4 dark:border-slate-800">
+          <h3 class="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
+            <i data-lucide="user" class="h-4 w-4 text-signal-500"></i>
+            People Found (<span x-text="people.length">0</span>)
+          </h3>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="border-b border-slate-100 bg-slate-50 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:border-slate-800 dark:bg-slate-800/50">
+                <th class="px-4 py-3 w-8">#</th>
+                <th class="px-4 py-3">Name</th>
+                <th class="px-4 py-3">Title</th>
+                <th class="px-4 py-3">Company</th>
+                <th class="px-4 py-3 text-center">Type</th>
+                <th class="px-4 py-3 text-center">LinkedIn</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+              <template x-for="(p, i) in people" :key="p.linkedin_url || p.full_name">
+                <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                  <td class="px-4 py-3 text-slate-400" x-text="i + 1"></td>
+                  <td class="px-4 py-3 font-medium text-slate-900 dark:text-white" x-text="p.full_name"></td>
+                  <td class="px-4 py-3 text-slate-600 dark:text-slate-300" x-text="p.title"></td>
+                  <td class="px-4 py-3 text-slate-600 dark:text-slate-300" x-text="p.company_name"></td>
+                  <td class="px-4 py-3 text-center">
+                    <span class="inline-flex rounded-full px-2 py-0.5 text-xs font-medium"
+                      :class="{
+                        'bg-pipeline-100 text-pipeline-800 dark:bg-pipeline-950 dark:text-pipeline-300': p.company_type === 'lsp',
+                        'bg-signal-100 text-signal-800 dark:bg-signal-950 dark:text-signal-300': p.company_type === 'client',
+                        'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400': !p.company_type
+                      }"
+                      x-text="p.company_type ? p.company_type.toUpperCase() : '—'"></span>
+                  </td>
+                  <td class="px-4 py-3 text-center">
+                    <a x-show="p.linkedin_url" :href="p.linkedin_url" target="_blank" class="text-signal-500 hover:underline">
+                      <i data-lucide="external-link" class="h-4 w-4"></i>
+                    </a>
+                    <span x-show="!p.linkedin_url" class="text-slate-400">—</span>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+          <p x-show="people.length === 0" class="px-5 py-8 text-center text-sm text-slate-400">No people found yet. Qualify domains in Step 1 first.</p>
+        </div>
+      </div>
+
+      {# Debug log #}
+      {{ log_box('s2-debug-log', 'h-56', 'Debug Log') }}
+
+      {# Export #}
+      <div x-show="people.length > 0 && !running" class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div class="border-b border-slate-100 px-5 py-4 dark:border-slate-800">
+          <h3 class="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
+            <i data-lucide="download" class="h-4 w-4 text-slate-400"></i>
+            Export
+          </h3>
+        </div>
+        <div class="flex flex-wrap gap-3 p-5">
+          <a href="/api/export/people-html" id="btn-export-html"
+            class="inline-flex items-center gap-2 rounded-lg bg-reach-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-reach-700 focus:outline-none focus:ring-2 focus:ring-reach-500 focus:ring-offset-2 dark:focus:ring-offset-slate-950">
+            <i data-lucide="file-text" class="h-4 w-4"></i>
+            Download HTML Report
+          </a>
+          <a href="/api/export/excel" id="btn-export-excel"
+            class="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-reach-500 focus:ring-offset-2 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 dark:focus:ring-offset-slate-950">
+            <i data-lucide="file-spreadsheet" class="h-4 w-4"></i>
+            Download Excel Full DB
+          </a>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  if (window.__locreachHeartbeat) return;
+  window.__locreachHeartbeat = true;
+  const _hbPort = '{{ heartbeat_port | default("8502") }}';
+  const ping = () => fetch('http://127.0.0.1:' + _hbPort + '/heartbeat', {
+    method: 'POST',
+  }).catch(() => {});
+  ping();
+  setInterval(ping, 3000);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) ping();
+  });
+  const closeUrl = 'http://127.0.0.1:' + _hbPort + '/closing';
+  const signalClose = () => navigator.sendBeacon(closeUrl);
+  try {
+    window.parent.addEventListener('pagehide', signalClose);
+    window.parent.addEventListener('beforeunload', signalClose);
+  } catch (e) {}
+})();
+
+function peoplePage() {
+  return {
+    running: false,
+    done: false,
+    ready: {{ todo_count | default(0) }} > 0,
+    skipLiPage: false,
+    liStatus: '',
+    statusType: {{ '"warning"' if (todo_count | default(0)) == 0 else '"info"' }},
+    statusMsg: {{ '"No companies to search. Run Step 1 first."' if (todo_count | default(0)) == 0 else '"' ~ (todo_count | default(0)) ~ ' companies ready — press Find People."' }},
+    people: [],
+    stats: { processed: 0, total: {{ todo_count | default(0) }}, people: 0, noPeople: 0 },
+    init() {
+      this.$nextTick(() => { if (window.lucide) lucide.createIcons(); });
+    },
+    startRun() {
+      this.running = true;
+      this.done = false;
+      this.statusType = 'info';
+      this.statusMsg = 'Starting Chrome…';
+      window.logLine('s2-debug-log', 'Run started', 'info');
+    },
+    stopRun() {
+      this.running = false;
+      this.done = true;
+      this.statusType = 'warning';
+      this.statusMsg = 'Stopped by user.';
+      window.logLine('s2-debug-log', 'Run stopped', 'warning');
+    },
+    resetSearch() {
+      window.showToast('Reset queued — reload page to see updated queue.', 'info');
+    },
+  };
+}
+</script>
+{% endblock %}
