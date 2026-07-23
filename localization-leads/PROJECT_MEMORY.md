@@ -161,11 +161,9 @@ Sales_Tool/                              # Git root → github.com/meetnama/LocR
 │   ├── sources/directory_scrape.py      # directory/listicle + LSP dirs; directory_search_queries
 │   ├── sources/geo.py                   # serp_suggests_country + verify_country_location
 │   ├── sources/email/… , sources/people/…
-│   ├── templates/                       # Jinja embeds (read-only)
-│   ├── tests/                           # scoring + ai_overview + directory_scrape + serp_summary
-│   ├── logs/
-│   │   ├── run_app.log
-│   │   └── step1_search.log             # Step 1 search diagnostics (weekly autoclean)
+│   ├── templates/                       # live Jinja embeds only (_embed_base + snapshot/people/leads)
+│   ├── tests/                           # scoring + ai_overview + directory_scrape + serp_summary + service_url
+│   ├── logs/                            # runtime (gitignored)
 │   ├── leads.db                         # shipped in git for cloud seed; free Render disk is ephemeral
 │   ├── .env                             # NEVER commit (local + mirrored as Render env vars)
 │   ├── .streamlit/config.toml
@@ -174,7 +172,7 @@ Sales_Tool/                              # Git root → github.com/meetnama/LocR
 └── .cursorrules                         # NOT on disk (session 36) — Cursor still injects the LocReach design rule; likely a User/Project rule in Cursor settings
 ```
 
-**Removed 2026-07-16 (tooling only — not required to run LocReach):** `.claude/`, `localization-leads/.claude/`, `.zcode/`, `.repowise*`, `.repowise-workspace.yaml`. Optional Cursor files may remain: `.cursorignore`, `.mcp.json`.
+**Removed obsolete (session 41 cleanup):** `docs/superpowers/**`, unused Flask Jinja mocks (`domains/people/emails.html`, `_base`, `_components`, `_db_domains_embed`), dead L3 `pattern_verify.py`, Repowise `.mcp.json`, Setup LocHere guide docx + `_gen_lead_guide.py`, nested `.git_nested_backup_locreach` / `.repowise` caches. Keep Setup bats 1–7 + shortcut helpers. Earlier (2026-07-16): `.claude/`, `.zcode/`, `.repowise*`.
 
 ---
 

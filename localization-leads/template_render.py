@@ -2,14 +2,13 @@
 template_render.py — Bridge between the Jinja/Tailwind templates in
 `templates/` and the live Streamlit app.
 
-Streamlit cannot use the Flask-oriented page templates directly (their
-buttons/routes assume a Flask backend). But read-only, presentational
-sections can be rendered server-side here with real data and embedded via
-`st.components.v1.html`. Interactive controls stay native Streamlit.
+Streamlit cannot use Flask-oriented page templates directly. Read-only,
+presentational sections are rendered server-side here with real data and
+embedded via `st.components.v1.html`. Interactive controls stay native Streamlit.
 
 Each `render_*` function returns a self-contained HTML document (Tailwind via
 CDN, extending `_embed_base.html`) suitable for `st.components.v1.html`.
-The paired `*_height` / `table_embed_height` helpers size the iframe.
+The paired `table_embed_height` helper sizes the iframe.
 """
 import os
 from functools import lru_cache
@@ -36,32 +35,6 @@ def _env() -> Environment:
 def table_embed_height(row_count: int) -> int:
     """Pixel height for a table-embedding iframe, clamped to a sane range."""
     return max(_MIN_PX, min(_MAX_PX, _CHROME_PX + row_count * _ROW_PX))
-
-
-# Backwards-compatible alias (Step 1 imported this name first).
-def qualified_db_table_height(row_count: int) -> int:
-    return table_embed_height(row_count)
-
-
-def render_qualified_db_table(rows) -> str:
-    """Render the 'All Qualified Domains in DB' partial (Step 1).
-
-    `rows` from `db.db_load_qualified_domains`:
-    (domain, company_name, linkedin_url, industry, country).
-    """
-    domains = [
-        {
-            "domain": r[0],
-            "company_name": r[1] or "",
-            "linkedin_url": r[2] or "",
-            "industry": r[3] or "",
-            "country": r[4] or "",
-        }
-        for r in rows
-    ]
-    return _env().get_template("_db_domains_embed.html").render(
-        domains=domains, count=len(domains)
-    )
 
 
 def render_people_db_table(rows) -> str:
