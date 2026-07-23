@@ -1,0 +1,13 @@
+﻿---
+description: Fix LocReach bugs locally, then push so Render deploys online
+alwaysApply: true
+---
+
+# LocReach: local fix → online deploy
+
+For any platform bug, comment, or fix request on LocReach:
+
+1. Fix and verify **locally** first (`localization-leads` / related config).
+2. Then **push to GitHub** (`meetnama/LocReach`) so Render auto-deploys to https://locreach.onrender.com.
+3. Do not leave fixes only on the local machine.
+4. If the change involves SearXNG or OpenSERP Docker/config, push those too so the matching Render services update.
