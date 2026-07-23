@@ -159,15 +159,21 @@ def is_directory_scrape_target(url: str, title: str = "") -> bool:
     if _host_matches_directory(dom):
         return True
     title_lc = (title or "").lower()
-    if title_lc and any(sig in title_lc for sig in _LISTICLE_TITLE):
-        # Avoid treating a single-company service page as a directory
-        # unless the title clearly ranks/lists multiple firms.
-        list_signals = (
-            "top ", "best ", "list of", "directory", "rankings",
-            "companies in", "agencies in", "firms in",
-        )
+    if not title_lc:
+        return False
+    list_signals = (
+        "top ", "best ", "list of", "directory", "rankings",
+        "companies in", "agencies in", "firms in",
+        "companies list", "agency list",
+    )
+    # Strong title cues (Top 10 / directory of / …)
+    if any(sig in title_lc for sig in _LISTICLE_TITLE):
         return any(s in title_lc for s in list_signals)
-    return False
+    # Also catch "Translation … Companies In Australia" without "Top N"
+    return any(s in title_lc for s in (
+        "companies in", "agencies in", "firms in",
+        "list of ", "directory of",
+    ))
 
 
 def extract_names_from_snippet(snippet: str) -> list[str]:

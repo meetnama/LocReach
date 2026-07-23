@@ -798,13 +798,22 @@ elif st.session_state.s1_done:
         )
     elif reason == "stopped":
         st.info(f"⏹️ Stopped by you — **{n}** qualified so far.")
+    elif reason in ("error", "serp_unavailable"):
+        err = st.session_state.s1_error or "Search engines unavailable."
+        st.error(f"⏹️ Step 1 aborted — {err}")
     elif target_n and n < target_n:
+        # Summarize this-run SERP yield so "0 checked" is not a black box.
+        qlog = st.session_state.get("s1_query_log") or []
+        raw_sum = sum(int(x.get("raw") or 0) for x in qlog if isinstance(x, dict))
+        filt_sum = sum(int(x.get("blocked") or 0) for x in qlog if isinstance(x, dict))
+        dup_sum = sum(int(x.get("dup") or 0) for x in qlog if isinstance(x, dict))
         st.warning(
             f"⏹️ Search ran out of new candidates before the target "
             f"(**{n}/{target_n} qualified**). "
-            "SERP engines returned too few usable sites (CAPTCHA / empty / "
-            "already in DB). Keep Docker SearXNG + OpenSERP up, wait out "
-            "Google cooldown, or change industry/country and run again."
+            f"This run: **{raw_sum}** SERP hits · **{checked}** checked · "
+            f"**{filt_sum}** filtered · **{dup_sum}** already in DB. "
+            "If SERP hits are 0, wait for SearXNG/OpenSERP to wake or cool down; "
+            "if filtered is high, broaden industry/country."
         )
     else:
         st.success(
@@ -823,7 +832,8 @@ checked   = st.session_state.s1_checked
 target    = st.session_state.s1_target or (depth or 0)
 filtered  = st.session_state.s1_filtered
 
-if checked > 0 or filtered > 0 or st.session_state.s1_running:
+# Always show counters after a run (even all-zeros) so empty SERP is visible.
+if checked > 0 or filtered > 0 or st.session_state.s1_running or st.session_state.s1_done:
     check_cap = _check_budget_for(target) if target else 0
     stat_cards([
         ("Qualified",   f"{len(qualified)} / {target}" if target else len(qualified), "qualified"),
@@ -831,7 +841,8 @@ if checked > 0 or filtered > 0 or st.session_state.s1_running:
         ("Failed",      st.session_state.s1_failed,                                    "pipeline"),
         ("Unreachable", st.session_state.s1_unreachable,                               "slate"),
     ])
-    # This-run counters only. Cumulative DB totals live on Database / Home.
+    if st.session_state.s1_done and filtered:
+        st.caption(f"Filtered without opening (blocked / geo / junk / dup): **{filtered}**")
 
 # ══════════════════════════════════════════════════════════════════════════════
 # BACKGROUND WORKER
@@ -1132,7 +1143,9 @@ def _run_step1(queries: list, num: int, q_out: queue.Queue,
     Stops on target, check_budget, diminishing unique-new rate, bank empty, or stop.
     """
     searxng_only = engine == "SearXNG Only"
-    use_google  = not searxng_only
+    # Cloud free tier: Chrome SERP (warmup/panels/gap-fill) OOMs or hangs and
+    # was mis-reported as "SERP exhausted". Use SearXNG∥OpenSERP→DDG only.
+    use_google  = (not searxng_only) and (not _ON_CLOUD)
     use_searxng = True
     use_ddg     = not searxng_only
     page_size   = _PAGE_SIZE
@@ -1157,8 +1170,77 @@ def _run_step1(queries: list, num: int, q_out: queue.Queue,
         except Exception:
             pass
 
+        # Prove free engines before burning the template bank.
+        probe_hits = 0
+        probe_detail = ""
+        probe_q = (
+            f"{(industry_slug or 'localization').replace('-', ' ')} company"
+            + (f" {country}" if country and country != "All Countries" else "")
+        )
+        for probe_try in range(4 if _ON_CLOUD else 2):
+            xng_st: dict = {}
+            try:
+                rows = searxng_search(
+                    probe_q, num=5, page=1, status_out=xng_st,
+                ) or []
+                probe_hits = len(rows)
+                if probe_hits:
+                    probe_detail = f"SearXNG probe OK — {probe_hits} hits"
+                    break
+                probe_detail = f"SearXNG probe empty ({xng_st.get('status') or 'empty'})"
+            except Exception as exc:
+                probe_detail = f"SearXNG probe failed ({type(exc).__name__})"
+            try:
+                osp_st: dict = {}
+                rows = openserp_search(
+                    probe_q, num=5, page=1, status_out=osp_st,
+                ) or []
+                if rows:
+                    probe_hits = len(rows)
+                    probe_detail = f"OpenSERP probe OK — {probe_hits} hits"
+                    break
+                probe_detail = (
+                    probe_detail
+                    + f"; OpenSERP ({osp_st.get('status') or 'empty'})"
+                )
+            except Exception as exc:
+                probe_detail = (
+                    probe_detail
+                    + f"; OpenSERP failed ({type(exc).__name__})"
+                )
+            q_out.put((
+                "engine_note",
+                f"Waiting for SERP engines… try {probe_try + 1} "
+                f"({probe_detail})",
+            ))
+            time.sleep(3.0 + probe_try * 2.0)
+
+        if probe_hits:
+            q_out.put(("engine_note", probe_detail))
+            _step1_log(probe_detail)
+        else:
+            msg = (
+                "SERP engines returned no results after wake/probe. "
+                f"Detail: {probe_detail or 'unknown'}. "
+                "Retry in a minute (SearXNG/OpenSERP may still be cold or rate-limited)."
+            )
+            _step1_log(msg)
+            q_out.put(("error", msg))
+            q_out.put(("done", {
+                "reason": "serp_unavailable",
+                "kept": 0,
+                "target": num,
+                "checked": 0,
+            }))
+            return
+
         if use_google:
             google_warmup()
+        elif _ON_CLOUD:
+            q_out.put((
+                "engine_note",
+                "Cloud mode — Chrome SERP skipped (SearXNG∥OpenSERP→DDG only)",
+            ))
 
         with sqlite3.connect(DB_PATH, check_same_thread=False) as wconn:
             db_init(wconn)

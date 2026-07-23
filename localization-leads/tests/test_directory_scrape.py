@@ -26,6 +26,11 @@ def test_detects_known_directory_hosts():
         "https://www.milestoneloc.com/blog/top-10",
         "Top 10 Translation Companies In Egypt 2025",
     )
+    # "Companies In Australia" without "Top N" still counts as a list page
+    assert is_directory_scrape_target(
+        "https://ikhya.com/translation-and-localization-companies-in-australia/",
+        "Translation and Localization Companies In Australia",
+    )
     # Single company page — not a directory
     assert not is_directory_scrape_target(
         "https://www.certifiedtranslationoffices.com/alsun",
