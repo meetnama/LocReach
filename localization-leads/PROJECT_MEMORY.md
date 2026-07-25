@@ -1,6 +1,6 @@
 # LocReach Lead Discovery — Project Memory
 
-_Last updated: 2026-07-23 (session 41 — cloud SERP/Chrome/geo fixes + obsolete-file cleanup)_
+_Last updated: 2026-07-25 (session 42 — cloud Step 1 stability: no Chrome SERP, engine probe, listicle fix)_
 
 **Read this first in every new session.** This file is the authoritative snapshot of how the app works *today*. Older user-facing docs may still mention the **old 4-step pipeline**. The live app is a **3-step unified pipeline** with a single `domains` table.
 
@@ -25,7 +25,7 @@ Some chats ask: do **not** re-scan the whole repo; only open files the user name
 | **Local launcher** | `Setup/6 - Start LocReach.bat` → auto-starts SearXNG + OpenSERP when possible, then `pythonw run_app.py` |
 | **Cloud (live)** | https://locreach.onrender.com — user opens **this URL only** (SearXNG/OpenSERP are backend services) |
 | **Ports (local)** | Streamlit `:8501`, heartbeat `:8502`, SearXNG `:8888`, OpenSERP `:7000` |
-| **Tests** | `pytest tests/ -q` — **48** passed (scoring, ai_overview, directory_scrape, serp_summary, service_url, …) |
+| **Tests** | `pytest tests/ -q` — **49** passed (scoring, ai_overview, directory_scrape, serp_summary, service_url / `running_on_cloud`, …) |
 | **Step 1 log** | `localization-leads/logs/step1_search.log` (weekly autoclean on run start; gitignored) |
 | **Launcher log** | `localization-leads/logs/run_app.log` (shutdown reason: `/closing` vs heartbeat timeout) |
 
@@ -39,14 +39,16 @@ Some chats ask: do **not** re-scan the whole repo; only open files the user name
 | **SearXNG** | `locreach-searxng` (`srv-d9h2cbjtqb8s73eg15cg`) — Docker (`searxng/Dockerfile` + `settings.yml`) → https://locreach-searxng.onrender.com |
 | **OpenSERP** | `locreach-openserp` (`srv-d9h2cdfavr4c73aipfk0`) — Docker (`openserp/Dockerfile`) → https://locreach-openserp.onrender.com |
 | **Blueprint** | `render.yaml` at repo root (documents the three services) |
-| **Cloud env** | `GROQ_API_KEY`, `LINKEDIN_EMAIL`, `LINKEDIN_PASSWORD`, `SEARXNG_URL`, `OPENSERP_URL` (app points at the two Render URLs, not localhost) |
+| **Cloud env** | `LOCREACH_CLOUD=1`, `GROQ_API_KEY`, `LINKEDIN_EMAIL`, `LINKEDIN_PASSWORD`, `SEARXNG_URL`, `OPENSERP_URL` (app points at the two Render URLs, not localhost) |
 | **Auto-deploy** | Push to `main` → Render rebuilds |
+| **Latest cloud Step1 commits** | `1c6be5c` (cloud detect / empty retry / OpenSERP 429), `15c1dff` (skip Chrome SERP on cloud, SERP probe, listicle detect, honest stop UI) |
 
 **Free-tier limits (do not ignore):**
 - **No persistent disk** on free → SQLite writes can be wiped on redeploy/restart (not true HDD parity for DB).
-- Services **sleep** when idle → first hit after idle can take ~1 minute.
-- Chrome on free RAM can OOM during heavy Selenium; paid upgrade if browser steps crash.
+- Services **sleep** when idle → first hit after idle can take ~1 minute; **siblings sleep independently** (app up ≠ SearXNG/OpenSERP warm).
+- Chrome on free RAM can OOM during heavy Selenium — **cloud Step 1 no longer uses Chrome for SERP** (session 42); Chrome still in image for local-parity / future LinkedIn etc.
 - Local Docker auto-restart of containers does **not** apply on Render; use the wired public service URLs.
+- **Render env-vars PUT replaces the whole set** — never PUT a single key alone (wipes others).
 
 ### 3-step pipeline (live)
 
@@ -68,7 +70,7 @@ Some chats ask: do **not** re-scan the whole repo; only open files the user name
 |---|-----------|--------|-------------------|
 | 1 | Directory / industry-dir SERP queries first in bank | `directory_search_queries` → `_build_template_bank` | (feeds #3) |
 | 2 | Google AI Overview + Local Pack | After free engines; `google_ai_overview(..., extra_organic=xng+osp)` | `ai_overview_verified` / `local_pack_verified` |
-| 3 | Directory / Top-N scrape | `sources/directory_scrape.py` (`is_directory_scrape_target`, `scrape_directory_companies`); hosts: Clutch, GoodFirms, **Proz**, TranslationCafe, TranslationDirectory, GALA, ATA, … | `directory_verified` |
+| 3 | Directory / Top-N scrape | `sources/directory_scrape.py` (`is_directory_scrape_target`, `scrape_directory_companies`); hosts: Clutch, GoodFirms, **Proz**, TranslationCafe, TranslationDirectory, GALA, ATA, …; titles with **“companies in …”** count even without “Top N” (session 42) | `directory_verified` |
 | 4 | SERP title+snippet: **strong** industry marker + location (`require_signal`) | `serp_summary_verified` / `serp_summary_has_industry` in `step1_qualify.py` | `serp_summary_verified` |
 | 5 | **Normal path only after priority pass** | `cheap_screen_candidate` → `_qualify_one` / `qualify_domain_fast` | score/geo reasons |
 
@@ -91,12 +93,17 @@ Some chats ask: do **not** re-scan the whole repo; only open files the user name
 | Piece | Behavior |
 |-------|----------|
 | **Template bank** | Directory queries **first** → primary → expansion → rotation (`_build_template_bank`) |
-| **Engine order (page-1)** | SearXNG ∥ OpenSERP → then Google panels w/ `extra_organic` → Google gap-fill → Bing → DDG |
+| **Cloud detect** | `running_on_cloud()` in `sources/utils.py`: `RENDER` / `LOCREACH_CLOUD` **or** `*.onrender.com` in `SEARXNG_URL`/`OPENSERP_URL`/`RENDER_EXTERNAL_URL` |
+| **Engine order — local** | SearXNG ∥ OpenSERP → Google panels w/ `extra_organic` → Google gap-fill → Bing → DDG |
+| **Engine order — cloud** | SearXNG ∥ OpenSERP → DDG HTML only (**no** `google_warmup` / panels / Chrome Bing). Note: “Cloud mode — Chrome SERP skipped” |
+| **Start gate (cloud)** | Probe SearXNG then OpenSERP before template bank; fail → `serp_unavailable` + clear `s1_error` (not fake “SERP exhausted”) |
+| **Empty page-1** | Cloud retries same term (`_EMPTY_SERP_RETRIES=3`) before abandoning |
+| **OpenSERP** | Wider gap on cloud; HTTP **429** backoff+retry once; engines `bing,yandex,ecosia,duckduckgo` |
 | **SERP helpers** | `service_url_host_port` / `service_reachable` (HTTPS→443); remote `ensure_*` HTTP-wake only (no Docker) |
-| **Workers** | Local **200**; Render (`RENDER`/`LOCREACH_CLOUD`) **8** (max 12) |
+| **Workers** | Local **200**; cloud **8** (max 12) via `running_on_cloud()` — ETA must show **8 workers** online |
 | **Check budget** | `min(15000, max(target×25, 800))` |
 | **Diminishing returns** | ≥3 terms / 15‑min, &lt;12 unique-new/hr → stop |
-| **UI stats** | This-run only; no full-DB embed on Step 1 |
+| **UI stats** | This-run only; always show counters after done; stop banner includes raw/filtered/dup sums; `error`/`serp_unavailable` use `st.error` |
 
 ### Title filter (Step 2)
 
@@ -255,7 +262,33 @@ Sales_Tool/                              # Git root → github.com/meetnama/LocR
 
 **Operator UX:** end user works only at https://locreach.onrender.com
 
-**Handoff stop point:** `PROJECT_MEMORY.md` updated for session 41 (bug fixes + cleanup pushed). Next: cloud Step 1 live-test on https://locreach.onrender.com after Render finishes deploy.
+**Handoff stop point:** session 42 cloud Step 1 stability live (`15c1dff`). Next: hard-refresh https://locreach.onrender.com and re-test Localization + Australia (target 25); confirm ETA **8 workers** + “Chrome SERP skipped”.
+
+---
+
+## Session 42 (2026-07-23 → 2026-07-25) — cloud Step 1 live-test + stability
+
+**Commits:** `1c6be5c`, `15c1dff` (memory sync this file)
+
+**Symptom:** Cloud Step 1 “Working… 0 checked” then “Done — 0 qualified” with misleading SERP-exhausted banner; ETA showed **200 workers**; Streamlit dim overlay = normal busy UI (not sleep).
+
+**Root causes found**
+- Cloud worker cap missed when `RENDER` unset in Docker → 200 workers / Chrome OOM risk
+- Chrome `google_warmup` / panels / gap-fill on free Render hung or crashed; exceptions labeled as generic “SERP exhausted”
+- Sibling OpenSERP Google path **429**; empty SERP pages burned template bank
+- Listicle titles like “Companies In Australia” missed by `is_directory_scrape_target` (required “Top N” first)
+- Windows Git Credential Manager prompt: stale `x-access-token` next to `meetnama` (deleted locally)
+
+**Shipped**
+- `running_on_cloud()` + `LOCREACH_CLOUD=1` in `render.yaml` / Render env
+- Cloud: skip Chrome SERP; SERP probe before bank; empty-page retries; OpenSERP 429 backoff
+- Directory detect: “companies in …” without Top N
+- Honest stop UI (`serp_unavailable` / `error` vs exhausted); always show post-run counters
+- Live probes: SearXNG returns AU localization hits when warm; OpenSERP mega Bing OK when not 429
+
+**Still open after session 42**
+- Confirm Localization+Australia run yields **Checked/Qualified > 0** after hard-refresh on live deploy
+- Free disk / re-private GitHub / demote junk verified rows / local heartbeat 180s validate
 
 ---
 
@@ -282,12 +315,7 @@ Sales_Tool/                              # Git root → github.com/meetnama/LocR
 - Dead L3 `pattern_verify.py`; Repowise `.mcp.json`; Setup LocHere guide docx + `_gen_lead_guide.py`
 - Local junk: `.repowise`, `.git_nested_backup_locreach`, caches, logs
 
-**Still open**
-- Free Render: no disk; sibling sleep; Chrome OOM under heavy Selenium
-- Heartbeat 180s long Step 1 live-validate (local)
-- Demote old junk `serp_summary_verified` / pre-gate rows in DB
-- Re-private GitHub after Render App access
-- First real cloud Step 1 live-test after session-41 deploy
+**Still open** → largely moved to session 42 (cloud live-test attempted; stability fixes shipped). Remaining: paid disk, re-private repo, demote junk rows, heartbeat validate.
 
 ---
 
@@ -443,15 +471,16 @@ Before the 2026-06/07 rebuild: Domain Discovery → Site Scanner → People → 
 
 | Item | Notes |
 |------|-------|
+| Cloud Step 1 yield confirm | After `15c1dff`: Localization + Australia should show Checked>0 / probe note; user must hard-refresh |
 | Heartbeat 180s live-validate | Local: full restart + long Step 1 still needed |
-| Cloud Step 1 live-test | Confirm session-41 deploy on https://locreach.onrender.com |
 | Cloud DB persistence | Free Render no disk — paid disk or external DB |
 | Re-private GitHub | Public repo has `leads.db`; grant Render App then private |
-| Chrome OOM on free | Mitigated (flags + worker cap) but heavy Selenium still risky |
+| Chrome OOM on free | Step 1 cloud SERP no longer uses Chrome; still risk if other pages drive Selenium hard |
 | Old junk qualified rows | Demote `serp_summary_verified` / pre-gate noise until wipe/re-run |
 | Same-market re-runs | Skip-all-seen + dim-returns → often **0 new** when DB saturated (expected) |
 | Industry false positives | Weak on-page `possible` still possible; serp_summary tightened session 41 |
-| Google CAPTCHA | Still limits Chrome gap-fill / panels |
+| Google CAPTCHA | Local gap-fill / panels only (cloud Step 1 skips Chrome SERP) |
+| OpenSERP / SearXNG rate limits | Brave/DDG/Startpage often CAPTCHA/429; Bing/Yandex may still return hits |
 | Country filter on exports | Deferred since session 36 |
 | `.cursorrules` location | User deferred (User vs Project rule) |
 
@@ -501,10 +530,14 @@ Before the 2026-06/07 rebuild: Domain Discovery → Site Scanner → People → 
 | `OpenSERP unavailable — name 'results' is not defined` | Fixed in `utils.py` (`results = []`); restart app |
 | Excel export fails | Session 31 domains fix — update code / reinstall deps |
 | Orange/empty SearXNG (local) | Docker + `6` or `5`; check `settings.yml` has json |
-| Cloud Step 1 no SERP | Confirm `SEARXNG_URL`/`OPENSERP_URL`; wake sleeping services; session 41 fixed HTTPS port-443 probe |
+| Cloud Step 1 no SERP / 0 checked | Hard-refresh; ETA must say **8 workers**; look for “Chrome SERP skipped” / probe note; wake SearXNG+OpenSERP; session 42 skips Chrome SERP |
+| Cloud “SERP exhausted” but engines up | Was Chrome crash mislabeled — fixed `15c1dff`; real failures show `st.error` / `serp_unavailable` |
+| ETA shows 200 workers on cloud | Old detect — need `running_on_cloud` deploy + `LOCREACH_CLOUD=1` |
+| GitHub “Select an account” (meetnama vs x-access-token) | Stale Windows credential; delete `git:https://x-access-token@github.com`; keep meetnama |
 | Cloud DB wiped after deploy | Expected on free (no disk); paid disk or external DB |
 | Site slow first open (cloud) | Free-tier cold start — wait ~1 min, refresh |
 | False “SearXNG not reachable” on cloud | Fixed session 41 (`service_reachable`); redeploy if banner still wrong |
+| Render env wiped after API PUT | PUT `/env-vars` replaces **all** keys — restore full set |
 | Connection error mid-run (local) | Heartbeat/watchdog — need `LOCREACH_HEARTBEAT_PORT` via `6 - Start LocReach.bat`; check `logs/run_app.log` |
 | App dies mid-scan | Don’t close LocReach tab; after fix, remounts shouldn’t kill. Memory Saver: exclude localhost |
 | Foreign domains in qualified | Run Step 1 once (auto `db_demote_geo_rejects`) or call demote; promote path disabled |
@@ -521,5 +554,5 @@ Before the 2026-06/07 rebuild: Domain Discovery → Site Scanner → People → 
 ```powershell
 cd D:\LocHere\Sales_Tool\localization-leads
 venv\Scripts\python.exe -m pytest tests/ -q
-# Expected: 20 passed
+# Expected: 49 passed (session 42)
 ```
