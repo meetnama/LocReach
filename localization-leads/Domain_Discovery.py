@@ -9,6 +9,8 @@ import os
 import streamlit as st
 import streamlit.components.v1 as components
 
+from ui_theme import render_app_sidebar
+
 st.set_page_config(
     page_title="LocReach — B2B Lead Generation",
     page_icon="🌐",
@@ -70,6 +72,9 @@ if _heartbeat_port:
         height=0,
     )
 
+# Build the left sidebar once at app root (before pages run).
+render_app_sidebar()
+
 pg = st.navigation(
     [
         st.Page("pages/0_Home.py",     title="Home",              icon="🏠", default=True),
@@ -78,6 +83,7 @@ pg = st.navigation(
         st.Page("pages/3_Emails.py",   title="Step 3 · Emails",   icon="📧"),
         st.Page("pages/4_Database.py", title="Database",          icon="🗄️"),
     ],
-    position="sidebar",
+    # Custom sidebar links only — framework top/sidebar nav has been unreliable.
+    position="hidden",
 )
 pg.run()

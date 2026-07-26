@@ -36,17 +36,25 @@ section.main {{
   transition: none !important;
   animation: none !important;
 }}
-/* Left navigation sidebar */
+/* Left navigation sidebar — keep open and visible */
 section[data-testid="stSidebar"],
 aside[data-testid="stSidebar"] {{
   display: flex !important;
   visibility: visible !important;
+  opacity: 1 !important;
+  transform: none !important;
+  margin-left: 0 !important;
+  width: 17.5rem !important;
+  min-width: 17.5rem !important;
+  max-width: 17.5rem !important;
   background: linear-gradient(180deg, {SLATE["900"]} 0%, {SLATE["950"]} 100%) !important;
-  border-right: 1px solid rgba(59,130,246,0.25) !important;
+  border-right: 1px solid rgba(59,130,246,0.35) !important;
+  z-index: 999 !important;
 }}
 section[data-testid="stSidebar"] > div,
 aside[data-testid="stSidebar"] > div {{
   background: transparent !important;
+  width: 100% !important;
 }}
 section[data-testid="stSidebar"] p,
 section[data-testid="stSidebar"] span,
@@ -56,6 +64,10 @@ aside[data-testid="stSidebar"] span,
 aside[data-testid="stSidebar"] label {{
   color: {SLATE["200"]} !important;
 }}
+[data-testid="stSidebarResizer"],
+[data-testid="stSidebarResizeHandle"] {{
+  display: none !important;
+}}
 [data-testid="stSidebarCollapsedControl"],
 [data-testid="collapsedControl"] {{
   display: flex !important;
@@ -64,6 +76,8 @@ aside[data-testid="stSidebar"] label {{
   opacity: 1 !important;
   z-index: 100000 !important;
   color: {SLATE["100"]} !important;
+  background: {REACH["500"]} !important;
+  border-radius: 0 8px 8px 0 !important;
 }}
 [data-testid="stSidebarHeader"] {{
   display: flex !important;
@@ -91,41 +105,22 @@ header[data-testid="stHeader"] {{
 }}
 .stDeployButton {{ display: none !important; }}
 
-/* Sidebar page navigation */
+/* Framework nav unused (position=hidden) */
 [data-testid="stSidebarNav"] {{
-  display: flex !important;
-  visibility: visible !important;
-  background: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
-  padding: 0.25rem 0.5rem 0.75rem !important;
+  display: none !important;
 }}
-[data-testid="stSidebarNav"] ul {{
-  flex-direction: column !important;
-  gap: 4px !important;
-  width: 100% !important;
-  padding: 4px 0 !important;
+
+/* Guaranteed in-page navigation strip */
+.lr-nav-strip {{
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin: 0 0 1rem 0; padding: 12px 14px;
+  background: linear-gradient(135deg, rgba(15,23,42,0.98), rgba(2,6,23,0.98));
+  border: 1px solid rgba(59,130,246,0.4);
+  border-radius: 12px;
 }}
-[data-testid="stSidebarNav"] li {{
-  width: 100% !important;
-  border-radius: 10px !important;
-  overflow: hidden;
-}}
-[data-testid="stSidebarNav"] a {{
-  border-radius: 10px !important;
-  font-weight: 600 !important;
-  font-size: 0.84rem !important;
-  color: {SLATE["400"]} !important;
-  padding: 10px 14px !important;
-}}
-[data-testid="stSidebarNav"] a:hover {{
-  background: {SLATE["800"]} !important;
-  color: {SLATE["100"]} !important;
-}}
-[data-testid="stSidebarNav"] a[aria-current="page"] {{
-  background: linear-gradient(135deg, rgba(59,130,246,0.22), rgba(59,130,246,0.06)) !important;
-  color: {REACH["400"]} !important;
-  box-shadow: inset 0 0 0 1px rgba(59,130,246,0.35) !important;
+.lr-nav-strip-title {{
+  font-weight: 800; font-size: 0.85rem; color: {REACH["400"]};
+  margin-right: 8px; letter-spacing: 0.02em;
 }}
 
 /* ── Typography ─────────────────────────────────────────────────────── */
@@ -363,11 +358,24 @@ div[data-testid="stHorizontalBlock"]:has(a[href*="1_Domains"]) a {{
 """
 
 
+def render_app_sidebar() -> None:
+    """Left sidebar navigation — call from app entry and from each page theme."""
+    with st.sidebar:
+        sidebar_brand("LR", "Navigate the pipeline")
+        sidebar_pipeline_nav()
+
+
 def inject_theme(*, show_home_button: bool = True) -> None:
-    """Inject shared CSS, left sidebar brand + nav links, and Home shortcut."""
+    """Inject shared CSS, sidebar nav, in-page nav strip, and Home shortcut."""
     st.markdown(_THEME_CSS, unsafe_allow_html=True)
-    _render_sidebar_nav()
+    render_app_sidebar()
     _ensure_sidebar_expanded()
+    # Always-visible fallback if Streamlit collapses the left panel.
+    st.markdown(
+        '<div class="lr-nav-strip"><span class="lr-nav-strip-title">NAVIGATION</span></div>',
+        unsafe_allow_html=True,
+    )
+    pipeline_nav_bar()
     if show_home_button:
         home_button()
 
@@ -393,7 +401,7 @@ def _ensure_sidebar_expanded() -> None:
     var sidebar = doc.querySelector(
       'section[data-testid="stSidebar"], aside[data-testid="stSidebar"]'
     );
-    if (sidebar && (sidebar.offsetWidth || 0) >= 100) return;
+    if (sidebar && (sidebar.offsetWidth || 0) >= 120) return;
     var btn = doc.querySelector(
       '[data-testid="stSidebarCollapsedControl"] button, [data-testid="collapsedControl"] button'
     );
@@ -407,18 +415,12 @@ def _ensure_sidebar_expanded() -> None:
   expand();
   setTimeout(expand, 150);
   setTimeout(expand, 600);
+  setTimeout(expand, 1200);
 })();
 </script>
 """,
         height=0,
     )
-
-
-def _render_sidebar_nav() -> None:
-    """Left sidebar brand; page links come from st.navigation(position='sidebar')."""
-    with st.sidebar:
-        sidebar_brand("LR", "Navigate the pipeline")
-        st.caption("Use the sidebar links to move between pages.")
 
 
 def pipeline_nav_bar() -> None:
