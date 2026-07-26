@@ -1,9 +1,7 @@
 """
 ui_theme.py — Shared professional design system for LocReach Streamlit pages.
 """
-import base64
 import html as _html
-from pathlib import Path
 
 import streamlit as st
 import streamlit.components.v1 as components
@@ -19,23 +17,6 @@ SLATE     = {
     "200": "#e2e8f0", "100": "#f1f5f9",
 }
 
-
-def _locreach_bg_data_uri() -> str:
-    path = Path(__file__).resolve().parent / "assets" / "locreach_bg.png"
-    if not path.is_file():
-        return ""
-    b64 = base64.b64encode(path.read_bytes()).decode("ascii")
-    return f"data:image/png;base64,{b64}"
-
-
-_BG_URI = _locreach_bg_data_uri()
-# Exact brand art — no color overlays/filters on the image itself.
-_BG_LAYERS = (
-    f'url("{_BG_URI}")'
-    if _BG_URI
-    else f'radial-gradient(ellipse 120% 80% at 10% -10%, #0b1b34 0%, {SLATE["950"]} 42%, #010409 100%)'
-)
-
 _THEME_CSS = f"""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
@@ -45,12 +26,7 @@ html, body, .stApp {{
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
 }}
 .stApp {{
-  background-color: {SLATE["950"]} !important;
-  background-image: {_BG_LAYERS} !important;
-  background-size: cover !important;
-  background-position: center center !important;
-  background-repeat: no-repeat !important;
-  background-attachment: fixed !important;
+  background: radial-gradient(ellipse 120% 80% at 10% -10%, #0b1b34 0%, {SLATE["950"]} 42%, #010409 100%) fixed !important;
 }}
 /* Stable layout with branded sidebar */
 [data-testid="stAppViewContainer"],
@@ -59,12 +35,13 @@ html, body, .stApp {{
 section.main {{
   transition: none !important;
   animation: none !important;
-  background: transparent !important;
 }}
-/* Custom left sidebar (st.page_link content — always owned by LocReach) */
+/* Left navigation sidebar */
 section[data-testid="stSidebar"],
 aside[data-testid="stSidebar"] {{
-  background: linear-gradient(180deg, rgba(15,23,42,0.92) 0%, rgba(2,6,23,0.94) 100%) !important;
+  display: flex !important;
+  visibility: visible !important;
+  background: linear-gradient(180deg, {SLATE["900"]} 0%, {SLATE["950"]} 100%) !important;
   border-right: 1px solid rgba(59,130,246,0.25) !important;
 }}
 section[data-testid="stSidebar"] > div,
@@ -114,9 +91,41 @@ header[data-testid="stHeader"] {{
 }}
 .stDeployButton {{ display: none !important; }}
 
-/* Hide framework sidebar-nav (we use custom page links instead) */
+/* Sidebar page navigation */
 [data-testid="stSidebarNav"] {{
-  display: none !important;
+  display: flex !important;
+  visibility: visible !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0.25rem 0.5rem 0.75rem !important;
+}}
+[data-testid="stSidebarNav"] ul {{
+  flex-direction: column !important;
+  gap: 4px !important;
+  width: 100% !important;
+  padding: 4px 0 !important;
+}}
+[data-testid="stSidebarNav"] li {{
+  width: 100% !important;
+  border-radius: 10px !important;
+  overflow: hidden;
+}}
+[data-testid="stSidebarNav"] a {{
+  border-radius: 10px !important;
+  font-weight: 600 !important;
+  font-size: 0.84rem !important;
+  color: {SLATE["400"]} !important;
+  padding: 10px 14px !important;
+}}
+[data-testid="stSidebarNav"] a:hover {{
+  background: {SLATE["800"]} !important;
+  color: {SLATE["100"]} !important;
+}}
+[data-testid="stSidebarNav"] a[aria-current="page"] {{
+  background: linear-gradient(135deg, rgba(59,130,246,0.22), rgba(59,130,246,0.06)) !important;
+  color: {REACH["400"]} !important;
+  box-shadow: inset 0 0 0 1px rgba(59,130,246,0.35) !important;
 }}
 
 /* ── Typography ─────────────────────────────────────────────────────── */
@@ -355,11 +364,10 @@ div[data-testid="stHorizontalBlock"]:has(a[href*="1_Domains"]) a {{
 
 
 def inject_theme(*, show_home_button: bool = True) -> None:
-    """Inject shared CSS, left sidebar nav, main nav bar, and Home shortcut."""
+    """Inject shared CSS, left sidebar brand + nav links, and Home shortcut."""
     st.markdown(_THEME_CSS, unsafe_allow_html=True)
     _render_sidebar_nav()
     _ensure_sidebar_expanded()
-    pipeline_nav_bar()
     if show_home_button:
         home_button()
 
@@ -407,10 +415,10 @@ def _ensure_sidebar_expanded() -> None:
 
 
 def _render_sidebar_nav() -> None:
-    """Left sidebar: brand + page links (framework nav is hidden)."""
+    """Left sidebar brand; page links come from st.navigation(position='sidebar')."""
     with st.sidebar:
         sidebar_brand("LR", "Navigate the pipeline")
-        sidebar_pipeline_nav()
+        st.caption("Use the sidebar links to move between pages.")
 
 
 def pipeline_nav_bar() -> None:
@@ -543,7 +551,7 @@ def sidebar_pipeline_nav() -> None:
     st.page_link("pages/3_Emails.py",   label="Step 3 · Emails",   icon="📧", use_container_width=True)
     st.page_link("pages/4_Database.py", label="Database",          icon="🗄️", use_container_width=True)
     st.markdown("---")
-    st.caption("Use the sidebar or the page links above the content.")
+    st.caption("Use this sidebar to move between pages.")
 
 
 def pipeline_cards(steps) -> None:

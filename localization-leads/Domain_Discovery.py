@@ -78,7 +78,6 @@ pg = st.navigation(
         st.Page("pages/3_Emails.py",   title="Step 3 · Emails",   icon="📧"),
         st.Page("pages/4_Database.py", title="Database",          icon="🗄️"),
     ],
-    # Hidden: we own the left sidebar via st.page_link in ui_theme (reliable).
-    position="hidden",
+    position="sidebar",
 )
 pg.run()
