@@ -41,6 +41,6 @@ components.html(
         people_todo=_people_todo,
         leads=_leads,
     ),
-    height=210,
+    height=150,
     scrolling=False,
 )

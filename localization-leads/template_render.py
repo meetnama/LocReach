@@ -86,7 +86,7 @@ def render_leads_db_table(rows) -> str:
 def render_pipeline_snapshot(qualified: int, people_total: int,
                              people_done: int, people_todo: int,
                              leads: int) -> str:
-    """Render the Home 'Pipeline Snapshot' panel with live funnel counts."""
+    """Render the three Home pipeline metric cards with live funnel counts."""
     people_pct = round(100 * people_done / people_total) if people_total else 0
     leads_pct = round(100 * leads / people_total) if people_total else 0
     conversion = leads_pct
