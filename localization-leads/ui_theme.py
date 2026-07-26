@@ -29,8 +29,8 @@ def _locreach_bg_data_uri() -> str:
 
 
 _BG_URI = _locreach_bg_data_uri()
+# Exact brand art — no color overlays/filters on the image itself.
 _BG_LAYERS = (
-    f'linear-gradient(180deg, rgba(2,6,23,0.78) 0%, rgba(2,6,23,0.62) 45%, rgba(2,6,23,0.82) 100%), '
     f'url("{_BG_URI}")'
     if _BG_URI
     else f'radial-gradient(ellipse 120% 80% at 10% -10%, #0b1b34 0%, {SLATE["950"]} 42%, #010409 100%)'
