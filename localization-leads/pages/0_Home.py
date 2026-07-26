@@ -15,7 +15,7 @@ from db import (
     db_wipe_all,
 )
 from ui_theme import (
-    inject_theme, stat_cards, section_label, pipeline_cards,
+    inject_theme, stat_cards, section_label,
 )
 from template_render import render_pipeline_snapshot
 
@@ -76,28 +76,6 @@ components.html(
     height=210,
     scrolling=False,
 )
-
-section_label("🗺️", "Pipeline Steps")
-
-pipeline_cards([
-    {
-        "num": 1, "icon": "🔍",
-        "title": "Find & Qualify Domains",
-        "page": "pages/1_Domains.py",
-    },
-    {
-        "num": 2, "icon": "👥",
-        "title": "Find People",
-        "page": "pages/2_People.py",
-    },
-    {
-        "num": 3, "icon": "📧",
-        "title": "Find Emails",
-        "page": "pages/3_Emails.py",
-    },
-])
-
-
 
 # ── Database browser ────────────────────────────────────────────────────────────
 section_label("🗄️", "Database")
