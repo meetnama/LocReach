@@ -355,22 +355,11 @@ div[data-testid="stHorizontalBlock"]:has(a[href*="1_Domains"]) a {{
 
 
 def inject_theme(*, show_home_button: bool = True) -> None:
-    """Inject shared CSS, left sidebar nav, main nav bar, app bar, Home shortcut."""
+    """Inject shared CSS, left sidebar nav, main nav bar, and Home shortcut."""
     st.markdown(_THEME_CSS, unsafe_allow_html=True)
     _render_sidebar_nav()
     _ensure_sidebar_expanded()
     pipeline_nav_bar()
-    st.markdown(
-        '<div class="lr-appbar">'
-        '<div class="lr-appbar-left">'
-        '<div class="lr-logo">LR</div>'
-        '<div><div class="lr-appname">LocReach</div>'
-        '<div class="lr-tagline">B2B Lead Generation · Localization Industry</div></div>'
-        '</div>'
-        '<div class="lr-appbar-right">3-Step Pipeline</div>'
-        '</div>',
-        unsafe_allow_html=True,
-    )
     if show_home_button:
         home_button()
 
