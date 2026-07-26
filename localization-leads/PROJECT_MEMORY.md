@@ -1,33 +1,34 @@
 # LocReach Lead Discovery — Project Memory
 
-_Last updated: 2026-07-25 (session 42 — cloud Step 1 stability: no Chrome SERP, engine probe, listicle fix)_
+_Last updated: 2026-07-27 (session 43 — UI shell: sidebar nav, brand assets, local heartbeat fix)_
 
 **Read this first in every new session.** This file is the authoritative snapshot of how the app works *today*. Older user-facing docs may still mention the **old 4-step pipeline**. The live app is a **3-step unified pipeline** with a single `domains` table.
 
-### Permanent workflow rule (session 40+)
+### Permanent workflow rule (session 40+ / strengthened 43)
 
-**Every bug / comment / fix:** change and verify **locally first**, then **commit + push** to GitHub so Render auto-deploys online. Do not leave fixes only on the HDD. Cursor User rule + `.cursor/rules/locreach-fix-then-deploy.mdc` (`alwaysApply: true`).
+**PERMANENT — never skip:** implement + verify **locally first**, then at **end of every session** that produced LocReach changes: **commit + push** to GitHub (`meetnama/LocReach`) so Render auto-deploys https://locreach.onrender.com. Do not leave fixes only on the HDD. Cursor User rule + `.cursor/rules/locreach-fix-then-deploy.mdc` (`alwaysApply: true`). End-of-session push = standing permission (never commit `.env`).
 
 ### Session-start constraint (optional, user may set)
 
-Some chats ask: do **not** re-scan the whole repo; only open files the user names. Ignore that when the user explicitly asks for a full review/cleanup.
+Some chats ask: do **not** re-scan the whole repo; only open files the user names. Ignore that when the user explicitly asks for a full review/cleanup / PROJECT_MEMORY update.
 
 ---
 
-## Current product (2026-07-23)
+## Current product (2026-07-27)
 
 | Item | Value |
 |------|--------|
 | **Product name** | **LocReach** (UI, launchers, exports) |
 | **Purpose** | B2B lead-gen for localization/translation: find qualified companies → decision-makers → confirmed work emails |
 | **Stack** | Streamlit (Python), SQLite (`leads.db`), undetected-chromedriver, SearXNG + OpenSERP (Docker), Groq (optional classifier) |
-| **Entry point** | `Domain_Discovery.py` via `st.navigation(position="top")` |
+| **Entry point** | `Domain_Discovery.py` — `st.navigation(..., position="hidden")`; custom sidebar owns page links |
 | **Local launcher** | `Setup/6 - Start LocReach.bat` → auto-starts SearXNG + OpenSERP when possible, then `pythonw run_app.py` |
 | **Cloud (live)** | https://locreach.onrender.com — user opens **this URL only** (SearXNG/OpenSERP are backend services) |
 | **Ports (local)** | Streamlit `:8501`, heartbeat `:8502`, SearXNG `:8888`, OpenSERP `:7000` |
-| **Tests** | `pytest tests/ -q` — **49** passed (scoring, ai_overview, directory_scrape, serp_summary, service_url / `running_on_cloud`, …) |
+| **Local Docker** | Containers `searxng` (`8888:8080`) + `openserp` (`7000:7000`) — correct for local Step 1 |
+| **Tests** | `pytest tests/ -q` — **49** passed (session 42 baseline; UI session did not add tests) |
 | **Step 1 log** | `localization-leads/logs/step1_search.log` (weekly autoclean on run start; gitignored) |
-| **Launcher log** | `localization-leads/logs/run_app.log` (shutdown reason: `/closing` vs heartbeat timeout) |
+| **Launcher log** | `localization-leads/logs/run_app.log` (shutdown: `/closing` vs heartbeat timeout) |
 
 ### Cloud deploy (session 40)
 
@@ -54,13 +55,13 @@ Some chats ask: do **not** re-scan the whole repo; only open files the user name
 
 | Step | Page | What it does | DB output |
 |------|------|--------------|-----------|
-| **Home** | `pages/0_Home.py` | Dashboard; step **buttons**; Open Database; full-DB Excel; Danger Zone reset (`db_wipe_all`) | reads only |
+| **Home** | `pages/0_Home.py` | Minimal dashboard: three metric cards only (`render_pipeline_snapshot`) | reads only |
 | **1** | `pages/1_Domains.py` | **Verified-first** harvest → then cheap screen → scrape/score → industry → geo | `domains` + `score_reasons` tags |
 | **2** | `pages/2_People.py` | Classify LSP/client → X-Ray → optional LinkedIn `/people` → website → title filter | `people` |
 | **3** | `pages/3_Emails.py` | L1 site → L2 EmailFormat+SMTP → L4 SearXNG; confirmed only | `leads` |
-| **Database** | `pages/4_Database.py` | Browse Domains / People / Leads / Blocked | reads only |
+| **Database** | `pages/4_Database.py` | Browse Domains / People / Leads / Blocked + **full-DB Excel export** + **Danger Zone reset** | reads / wipe |
 
-**Product direction:** Discover + export only (no import). Per-run Excel on Steps; full-DB Excel on Home.
+**Product direction:** Discover + export only (no import). Per-run Excel on Steps; full-DB Excel on **Database** page (moved from Home session 43).
 
 ### Step 1 — verified-first architecture (session 39)
 
@@ -113,25 +114,33 @@ Some chats ask: do **not** re-scan the whole repo; only open files the user name
 
 L1 site / L2 EFmt+SMTP / L4 SearXNG only. **L3 `pattern_verify` deleted** (session 41). Gate: `lead_gate.is_confirmed_lead()`.
 
-### Launcher / heartbeat
+### Launcher / heartbeat (session 43)
 
-`run_app.py` sets `LOCREACH_HEARTBEAT_PORT`; `Domain_Discovery.py` injects parent ping **only if that env is set** (cloud Streamlit CMD skips it). `SHUTDOWN_TIMEOUT` **180s**. Still needs local long Step 1 live-validate.
+`run_app.py` sets `LOCREACH_HEARTBEAT_PORT`; `Domain_Discovery.py` injects parent ping **only if that env is set** (cloud Streamlit CMD skips it).
+- **Ping on every remount** + re-arm parent `setInterval` if lost (fixes false Connection error).
+- `SHUTDOWN_TIMEOUT` **300s** (was 180s).
+- Do **not** mount extra `components.html` from `inject_theme` (Step 1 ~1.5s remount spam killed heartbeats / flooded `run_app.log`).
+- Diagnose kills: `logs/run_app.log` → `shutdown via heartbeat timeout` + `killing Streamlit`.
 
 **Restart rule:** After code changes, fully restart via `6 - Start LocReach.bat`.
 
 ---
 
-## UI architecture (2026-07-22)
+## UI architecture (2026-07-27 — session 43)
 
 | Component | Status |
 |-----------|--------|
 | **Framework** | Streamlit; read-only Jinja embeds via `template_render.py` + `components.html` |
-| **Design system** | `ui_theme.py` — Email_Tools palette |
-| **Navigation** | Top tabs + sidebar (`inject_theme` → `sidebar_pipeline_nav`) |
-| **Home button** | Every page **except** Home |
-| **Pipeline steps (Home)** | `pipeline_cards` → real `st.button` + `st.switch_page` (same as Open Database). No HTML cards/Open→/descriptions/stat captions |
-| **Database page** | Domains table: Domain as **link**, sorted by **Score**, no Status/Keyword/Type/date cols |
-| **Jinja embeds** | Home pipeline snapshot; Step 2/3 DB tables only (`_pipeline_snapshot_embed`, `_db_people_embed`, `_db_leads_embed` + `_embed_base`). Flask page mocks **deleted** session 41 |
+| **Design system** | `ui_theme.py` — navy→cyan **gradient bg** (`assets/locreach_bg.png` data-URI, no color overlay); app text **white** |
+| **Navigation** | Left sidebar only (`position="hidden"` + `render_app_sidebar` / `sidebar_pipeline_nav`). No top tabs / no main NAVIGATION strip |
+| **Sidebar width** | Fixed **230px**, no scroll/resizer; collapse/fullscreen chrome hidden |
+| **Logo** | Transparent `assets/locreach_logo.png` centered at sidebar top (not boxed LR chip) |
+| **Current page** | `sidebar_pipeline_nav` uses `st.button` + `st.switch_page`; **active** = primary + left accent (not relying on `aria-current`) |
+| **Hover** | Unified blue hover on inactive sidebar buttons |
+| **Home** | Three metric cards only (`templates/_pipeline_snapshot_embed.html`) — no welcome, pipeline step cards, Open Database, export, or reset |
+| **Database page** | Browse tabs + full-DB Excel + Danger Zone `db_wipe_all` |
+| **Home button** | Every page **except** Home (`← Back to Home`) |
+| **Jinja embeds** | Home metrics; Step 2/3 DB tables (`_pipeline_snapshot_embed`, `_db_people_embed`, `_db_leads_embed` + `_embed_base`) |
 
 ---
 
@@ -164,6 +173,8 @@ Sales_Tool/                              # Git root → github.com/meetnama/LocR
 │   ├── Domain_Discovery.py
 │   ├── run_app.py
 │   ├── ui_theme.py
+│   ├── assets/locreach_bg.png           # app-wide gradient background
+│   ├── assets/locreach_logo.png         # transparent sidebar logo
 │   ├── template_render.py               # Jinja→Streamlit bridge (read-only embeds)
 │   ├── db.py                            # CRUD; db_load_all_domain_names; db_demote_geo_rejects (promote disabled)
 │   ├── step1_qualify.py                 # verified fast-path + cheap_screen + qualify_domain_fast
@@ -472,7 +483,7 @@ Before the 2026-06/07 rebuild: Domain Discovery → Site Scanner → People → 
 | Item | Notes |
 |------|-------|
 | Cloud Step 1 yield confirm | After `15c1dff`: Localization + Australia should show Checked>0 / probe note; user must hard-refresh |
-| Heartbeat 180s live-validate | Local: full restart + long Step 1 still needed |
+| Heartbeat live-validate | Session 43: remount ping + 300s timeout shipped — **restart local via bat 6** and confirm long Step 1 no longer Connection-errors |
 | Cloud DB persistence | Free Render no disk — paid disk or external DB |
 | Re-private GitHub | Public repo has `leads.db`; grant Render App then private |
 | Chrome OOM on free | Step 1 cloud SERP no longer uses Chrome; still risk if other pages drive Selenium hard |
@@ -482,7 +493,30 @@ Before the 2026-06/07 rebuild: Domain Discovery → Site Scanner → People → 
 | Google CAPTCHA | Local gap-fill / panels only (cloud Step 1 skips Chrome SERP) |
 | OpenSERP / SearXNG rate limits | Brave/DDG/Startpage often CAPTCHA/429; Bing/Yandex may still return hits |
 | Country filter on exports | Deferred since session 36 |
-| `.cursorrules` location | User deferred (User vs Project rule) |
+
+---
+
+## Session 43 (2026-07-26 → 2026-07-27) — UI shell + local Connection error
+
+### Product / rules
+1. Permanent rule: local first → **end-of-session commit+push** (User rule + `locreach-fix-then-deploy.mdc`).
+2. Cursor Agents “Repositories” label `locreach` comes from GitHub remote slug (not folder `Sales_Tool`) — casing not editable in UI.
+
+### UI
+1. Dropped top `st.navigation(position="top")` (hid/broke sidebar) → `position="hidden"` + custom sidebar.
+2. Brand bg image iterations → final **navy→cyan gradient** `assets/locreach_bg.png` (exact colors).
+3. Sidebar: centered transparent `locreach_logo.png`; width **230px**; no Navigate heading; no collapse/fullscreen chrome.
+4. Removed Home clutter: welcome, metric strip, pipeline step cards, Open Database, export/reset (export+reset → **Database**).
+5. Home = three metric cards only (`_pipeline_snapshot_embed.html`).
+6. Current-page marker: `sidebar_pipeline_nav` buttons + primary/left bar; hover on inactive.
+
+### Local stability
+1. Connection error **was watchdog kill**: `run_app.log` `shutdown via heartbeat timeout (quiet=180.4s …) killing Streamlit`.
+2. Fix (`eaee865`): remount heartbeat ping + re-arm interval; remove `inject_theme` `components.html` expand spam; timeout **300s**.
+3. Local Docker OK: `searxng:8888`, `openserp:7000`.
+
+### Commits (session 43 UI/stability, latest)
+`65b1565` active nav · `eaee865` heartbeat · earlier: bg/logo/sidebar/Home/Database moves · `61f08a5` permanent deploy rule
 
 ---
 
@@ -538,8 +572,8 @@ Before the 2026-06/07 rebuild: Domain Discovery → Site Scanner → People → 
 | Site slow first open (cloud) | Free-tier cold start — wait ~1 min, refresh |
 | False “SearXNG not reachable” on cloud | Fixed session 41 (`service_reachable`); redeploy if banner still wrong |
 | Render env wiped after API PUT | PUT `/env-vars` replaces **all** keys — restore full set |
-| Connection error mid-run (local) | Heartbeat/watchdog — need `LOCREACH_HEARTBEAT_PORT` via `6 - Start LocReach.bat`; check `logs/run_app.log` |
-| App dies mid-scan | Don’t close LocReach tab; after fix, remounts shouldn’t kill. Memory Saver: exclude localhost |
+| Connection error mid-run (local) | Watchdog kill — check `logs/run_app.log` for `heartbeat timeout`; use `6 - Start LocReach.bat`; session 43 remount-ping + 300s timeout |
+| App dies mid-scan | Don’t close LocReach tab; after `eaee865`, remounts should keep pings. Memory Saver: exclude localhost |
 | Foreign domains in qualified | Run Step 1 once (auto `db_demote_geo_rejects`) or call demote; promote path disabled |
 | Clean Step 1 market test | Home Danger Zone reset / delete `leads.db` → restart → re-run |
 | Chrome/LinkedIn weird | Delete `.chrome_profile/`, re-login |
