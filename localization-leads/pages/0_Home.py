@@ -77,21 +77,6 @@ components.html(
     scrolling=False,
 )
 
-# ── Database browser ────────────────────────────────────────────────────────────
-section_label("🗄️", "Database")
-_db_col1, _db_col2 = st.columns([2, 4])
-with _db_col1:
-    if st.button(
-        "🗄️ Open Database view",
-        use_container_width=True,
-        key="home_open_database",
-    ):
-        st.switch_page("pages/4_Database.py")
-st.caption(
-    "Browse **everything** in `leads.db` (domains, people, leads, blocked) "
-    "with search and filters. Per-run Excel downloads stay on each Step page."
-)
-
 # ── Full database Excel export (by category) ───────────────────────────────────
 section_label("📥", "Export full database")
 _ex1, _ex2 = st.columns([2, 4])
