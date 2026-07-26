@@ -83,10 +83,11 @@ aside[data-testid="stSidebar"] {{
   opacity: 1 !important;
   transform: none !important;
   margin-left: 0 !important;
-  width: 200px !important;
-  min-width: 200px !important;
-  max-width: 200px !important;
-  overflow: hidden !important;
+  width: 230px !important;
+  min-width: 230px !important;
+  max-width: 230px !important;
+  overflow-x: hidden !important;
+  overflow-y: hidden !important;
   background: linear-gradient(180deg, rgba(15,23,42,0.92) 0%, rgba(2,6,23,0.94) 100%) !important;
   border-right: 1px solid rgba(59,130,246,0.35) !important;
   z-index: 999 !important;
@@ -94,11 +95,12 @@ aside[data-testid="stSidebar"] {{
 section[data-testid="stSidebar"] > div,
 aside[data-testid="stSidebar"] > div {{
   background: transparent !important;
-  width: 200px !important;
-  max-width: 200px !important;
-  overflow: hidden !important;
+  width: 230px !important;
+  max-width: 230px !important;
   overflow-x: hidden !important;
   overflow-y: hidden !important;
+  padding-left: 0.35rem !important;
+  padding-right: 0.35rem !important;
 }}
 section[data-testid="stSidebar"] ::-webkit-scrollbar,
 aside[data-testid="stSidebar"] ::-webkit-scrollbar {{
@@ -121,27 +123,80 @@ aside[data-testid="stSidebar"] span,
 aside[data-testid="stSidebar"] label {{
   color: #ffffff !important;
 }}
+/* Sidebar nav links — full label + consistent hover/active for all items */
 section[data-testid="stSidebar"] [data-testid="stPageLink-NavLink"],
 aside[data-testid="stSidebar"] [data-testid="stPageLink-NavLink"],
-section[data-testid="stSidebar"] a,
-aside[data-testid="stSidebar"] a {{
+section[data-testid="stSidebar"] a[href],
+aside[data-testid="stSidebar"] a[href] {{
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.45rem !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  margin: 3px 0 !important;
+  padding: 0.55rem 0.7rem !important;
+  border-radius: 10px !important;
+  border: 1px solid transparent !important;
+  background: transparent !important;
+  color: #ffffff !important;
+  font-size: 0.92rem !important;
+  font-weight: 600 !important;
   white-space: nowrap !important;
   overflow: visible !important;
   text-overflow: clip !important;
-  max-width: none !important;
-  width: 100% !important;
-  box-sizing: border-box !important;
-  padding-right: 0.5rem !important;
-  color: #ffffff !important;
-  font-size: 0.9rem !important;
+  text-decoration: none !important;
+  transition: background 0.15s ease, border-color 0.15s ease !important;
 }}
 section[data-testid="stSidebar"] [data-testid="stPageLink-NavLink"] p,
 aside[data-testid="stSidebar"] [data-testid="stPageLink-NavLink"] p,
-section[data-testid="stSidebar"] a span,
-aside[data-testid="stSidebar"] a span {{
+section[data-testid="stSidebar"] [data-testid="stPageLink-NavLink"] span,
+aside[data-testid="stSidebar"] [data-testid="stPageLink-NavLink"] span,
+section[data-testid="stSidebar"] a[href] p,
+aside[data-testid="stSidebar"] a[href] p,
+section[data-testid="stSidebar"] a[href] span,
+aside[data-testid="stSidebar"] a[href] span {{
+  color: #ffffff !important;
   overflow: visible !important;
   text-overflow: clip !important;
   white-space: nowrap !important;
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+}}
+section[data-testid="stSidebar"] [data-testid="stPageLink-NavLink"]:hover,
+aside[data-testid="stSidebar"] [data-testid="stPageLink-NavLink"]:hover,
+section[data-testid="stSidebar"] a[href]:hover,
+aside[data-testid="stSidebar"] a[href]:hover {{
+  background: rgba(59,130,246,0.24) !important;
+  border-color: rgba(59,130,246,0.35) !important;
+  color: #ffffff !important;
+}}
+section[data-testid="stSidebar"] [data-testid="stPageLink-NavLink"]:hover p,
+aside[data-testid="stSidebar"] [data-testid="stPageLink-NavLink"]:hover p,
+section[data-testid="stSidebar"] [data-testid="stPageLink-NavLink"]:hover span,
+aside[data-testid="stSidebar"] [data-testid="stPageLink-NavLink"]:hover span,
+section[data-testid="stSidebar"] a[href]:hover p,
+aside[data-testid="stSidebar"] a[href]:hover p,
+section[data-testid="stSidebar"] a[href]:hover span,
+aside[data-testid="stSidebar"] a[href]:hover span {{
+  color: #ffffff !important;
+}}
+section[data-testid="stSidebar"] [data-testid="stPageLink-NavLink"][aria-current="page"],
+aside[data-testid="stSidebar"] [data-testid="stPageLink-NavLink"][aria-current="page"],
+section[data-testid="stSidebar"] a[aria-current="page"],
+aside[data-testid="stSidebar"] a[aria-current="page"] {{
+  background: rgba(59,130,246,0.30) !important;
+  border-color: rgba(59,130,246,0.45) !important;
+  color: #ffffff !important;
+}}
+section[data-testid="stSidebar"] [data-testid="stPageLink-NavLink"][aria-current="page"] p,
+aside[data-testid="stSidebar"] [data-testid="stPageLink-NavLink"][aria-current="page"] p,
+section[data-testid="stSidebar"] [data-testid="stPageLink-NavLink"][aria-current="page"] span,
+aside[data-testid="stSidebar"] [data-testid="stPageLink-NavLink"][aria-current="page"] span,
+section[data-testid="stSidebar"] a[aria-current="page"] p,
+aside[data-testid="stSidebar"] a[aria-current="page"] p,
+section[data-testid="stSidebar"] a[aria-current="page"] span,
+aside[data-testid="stSidebar"] a[aria-current="page"] span {{
   color: #ffffff !important;
 }}
 [data-testid="stSidebarResizer"],
