@@ -4,6 +4,7 @@ ui_theme.py — Shared professional design system for LocReach Streamlit pages.
 import html as _html
 
 import streamlit as st
+import streamlit.components.v1 as components
 
 REACH     = {"400": "#60a5fa", "500": "#3b82f6", "600": "#2563eb"}
 SIGNAL    = {"400": "#c084fc", "500": "#a855f7"}
@@ -21,9 +22,8 @@ _THEME_CSS = f"""
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
 /* ── Base / app shell ─────────────────────────────────────────────────── */
-html, body, [class*="css"], .stApp {{
+html, body, .stApp {{
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
-  overflow-x: hidden !important;
 }}
 .stApp {{
   background: radial-gradient(ellipse 120% 80% at 10% -10%, #0b1b34 0%, {SLATE["950"]} 42%, #010409 100%) fixed !important;
@@ -36,12 +36,9 @@ section.main {{
   transition: none !important;
   animation: none !important;
 }}
-/* Branded left sidebar (st.navigation position=sidebar) */
+/* Custom left sidebar (st.page_link content — always owned by LocReach) */
 section[data-testid="stSidebar"],
 aside[data-testid="stSidebar"] {{
-  display: flex !important;
-  visibility: visible !important;
-  pointer-events: auto !important;
   background: linear-gradient(180deg, {SLATE["900"]} 0%, {SLATE["950"]} 100%) !important;
   border-right: 1px solid rgba(59,130,246,0.25) !important;
 }}
@@ -49,12 +46,22 @@ section[data-testid="stSidebar"] > div,
 aside[data-testid="stSidebar"] > div {{
   background: transparent !important;
 }}
+section[data-testid="stSidebar"] p,
+section[data-testid="stSidebar"] span,
+section[data-testid="stSidebar"] label,
+aside[data-testid="stSidebar"] p,
+aside[data-testid="stSidebar"] span,
+aside[data-testid="stSidebar"] label {{
+  color: {SLATE["200"]} !important;
+}}
 [data-testid="stSidebarCollapsedControl"],
 [data-testid="collapsedControl"] {{
   display: flex !important;
   visibility: visible !important;
   pointer-events: auto !important;
-  color: {SLATE["300"]} !important;
+  opacity: 1 !important;
+  z-index: 100000 !important;
+  color: {SLATE["100"]} !important;
 }}
 [data-testid="stSidebarHeader"] {{
   display: flex !important;
@@ -82,44 +89,9 @@ header[data-testid="stHeader"] {{
 }}
 .stDeployButton {{ display: none !important; }}
 
-/* ── Left sidebar page nav (st.navigation position=sidebar) ─────────── */
+/* Hide framework sidebar-nav (we use custom page links instead) */
 [data-testid="stSidebarNav"] {{
-  display: flex !important;
-  visibility: visible !important;
-  background: transparent !important;
-  border-bottom: none !important;
-  padding: 0 0.5rem 0.75rem !important;
-  box-shadow: none !important;
-  position: static !important;
-  min-height: 0 !important;
-  transition: none !important;
-}}
-[data-testid="stSidebarNav"] ul {{
-  flex-direction: column !important;
-  gap: 4px !important;
-  padding: 4px 0 !important;
-  width: 100% !important;
-}}
-[data-testid="stSidebarNav"] li {{
-  border-radius: 10px !important;
-  overflow: hidden;
-  width: 100% !important;
-}}
-[data-testid="stSidebarNav"] a {{
-  border-radius: 10px !important;
-  font-weight: 600 !important;
-  font-size: 0.84rem !important;
-  color: {SLATE["400"]} !important;
-  padding: 10px 14px !important;
-}}
-[data-testid="stSidebarNav"] a:hover {{
-  background: {SLATE["800"]} !important;
-  color: {SLATE["100"]} !important;
-}}
-[data-testid="stSidebarNav"] a[aria-current="page"] {{
-  background: linear-gradient(135deg, rgba(59,130,246,0.22), rgba(59,130,246,0.06)) !important;
-  color: {REACH["400"]} !important;
-  box-shadow: inset 0 0 0 1px rgba(59,130,246,0.35) !important;
+  display: none !important;
 }}
 
 /* ── Typography ─────────────────────────────────────────────────────── */
@@ -358,9 +330,11 @@ div[data-testid="stHorizontalBlock"]:has(a[href*="1_Domains"]) a {{
 
 
 def inject_theme(*, show_home_button: bool = True) -> None:
-    """Inject shared CSS, sidebar brand, app bar, and optional Home shortcut."""
+    """Inject shared CSS, left sidebar nav, main nav bar, app bar, Home shortcut."""
     st.markdown(_THEME_CSS, unsafe_allow_html=True)
     _render_sidebar_nav()
+    _ensure_sidebar_expanded()
+    pipeline_nav_bar()
     st.markdown(
         '<div class="lr-appbar">'
         '<div class="lr-appbar-left">'
@@ -385,11 +359,44 @@ def home_button() -> None:
     )
 
 
+def _ensure_sidebar_expanded() -> None:
+    """Click Streamlit's expand control if the left sidebar is collapsed."""
+    components.html(
+        """
+<script>
+(function () {
+  var doc;
+  try { doc = window.parent.document; } catch (e) { doc = document; }
+  function expand() {
+    var sidebar = doc.querySelector(
+      'section[data-testid="stSidebar"], aside[data-testid="stSidebar"]'
+    );
+    if (sidebar && (sidebar.offsetWidth || 0) >= 100) return;
+    var btn = doc.querySelector(
+      '[data-testid="stSidebarCollapsedControl"] button, [data-testid="collapsedControl"] button'
+    );
+    if (!btn) {
+      btn = doc.querySelector(
+        '[data-testid="stSidebarCollapsedControl"], [data-testid="collapsedControl"]'
+      );
+    }
+    if (btn) btn.click();
+  }
+  expand();
+  setTimeout(expand, 150);
+  setTimeout(expand, 600);
+})();
+</script>
+""",
+        height=0,
+    )
+
+
 def _render_sidebar_nav() -> None:
-    """Left sidebar brand header (page links come from st.navigation)."""
+    """Left sidebar: brand + page links (framework nav is hidden)."""
     with st.sidebar:
         sidebar_brand("LR", "Navigate the pipeline")
-        st.caption("Use the sidebar links to move between pages.")
+        sidebar_pipeline_nav()
 
 
 def pipeline_nav_bar() -> None:
@@ -522,7 +529,7 @@ def sidebar_pipeline_nav() -> None:
     st.page_link("pages/3_Emails.py",   label="Step 3 · Emails",   icon="📧", use_container_width=True)
     st.page_link("pages/4_Database.py", label="Database",          icon="🗄️", use_container_width=True)
     st.markdown("---")
-    st.caption("Use the top tabs or this sidebar to move between pages.")
+    st.caption("Use the sidebar or the page links above the content.")
 
 
 def pipeline_cards(steps) -> None:

@@ -78,7 +78,7 @@ pg = st.navigation(
         st.Page("pages/3_Emails.py",   title="Step 3 · Emails",   icon="📧"),
         st.Page("pages/4_Database.py", title="Database",          icon="🗄️"),
     ],
-    # Left sidebar — top nav hides/collapses the sidebar on current Streamlit builds
-    position="sidebar",
+    # Hidden: we own the left sidebar via st.page_link in ui_theme (reliable).
+    position="hidden",
 )
 pg.run()
