@@ -4,6 +4,7 @@ ui_theme.py — Shared professional design system for LocReach Streamlit pages.
 import html as _html
 
 import streamlit as st
+import streamlit.components.v1 as components
 
 REACH     = {"400": "#60a5fa", "500": "#3b82f6", "600": "#2563eb"}
 SIGNAL    = {"400": "#c084fc", "500": "#a855f7"}
@@ -36,23 +37,45 @@ section.main {{
   transition: none !important;
   animation: none !important;
 }}
-section[data-testid="stSidebar"] {{
+/* Force left sidebar open (Streamlit top-nav builds often collapse it) */
+section[data-testid="stSidebar"],
+aside[data-testid="stSidebar"],
+[data-testid="stSidebar"] {{
   display: flex !important;
   visibility: visible !important;
   pointer-events: auto !important;
+  opacity: 1 !important;
+  transform: translateX(0) !important;
+  margin-left: 0 !important;
+  left: 0 !important;
+  width: 16.5rem !important;
+  min-width: 16.5rem !important;
+  max-width: 20rem !important;
+  z-index: 100 !important;
   background: linear-gradient(180deg, {SLATE["900"]} 0%, {SLATE["950"]} 100%) !important;
   border-right: 1px solid rgba(59,130,246,0.25) !important;
-  min-width: 15rem !important;
 }}
-section[data-testid="stSidebar"] > div {{
+section[data-testid="stSidebar"] > div,
+aside[data-testid="stSidebar"] > div,
+[data-testid="stSidebar"] > div {{
   background: transparent !important;
+  width: 100% !important;
 }}
 [data-testid="stSidebarCollapsedControl"],
 [data-testid="collapsedControl"] {{
   display: flex !important;
   visibility: visible !important;
   pointer-events: auto !important;
-  color: {SLATE["300"]} !important;
+  opacity: 1 !important;
+  z-index: 1000 !important;
+  color: {SLATE["100"]} !important;
+  background: {REACH["500"]} !important;
+  border-radius: 0 8px 8px 0 !important;
+  box-shadow: 0 2px 10px rgba(59,130,246,0.45) !important;
+}}
+[data-testid="stSidebarCollapsedControl"] button,
+[data-testid="collapsedControl"] button {{
+  color: white !important;
 }}
 [data-testid="stSidebarHeader"] {{
   display: flex !important;
@@ -358,6 +381,7 @@ def inject_theme(*, show_home_button: bool = True) -> None:
     """Inject shared CSS, sidebar nav, app bar, and optional Home shortcut."""
     st.markdown(_THEME_CSS, unsafe_allow_html=True)
     _render_sidebar_nav()
+    _ensure_sidebar_expanded()
     st.markdown(
         '<div class="lr-appbar">'
         '<div class="lr-appbar-left">'
@@ -379,6 +403,36 @@ def home_button() -> None:
         "pages/0_Home.py",
         label="← Back to Home",
         icon="🏠",
+    )
+
+
+def _ensure_sidebar_expanded() -> None:
+    """Re-open Streamlit's left sidebar if a newer build left it collapsed."""
+    components.html(
+        """
+<script>
+(function () {
+  var doc;
+  try { doc = window.parent.document; } catch (e) { doc = document; }
+  function expand() {
+    var sidebar = doc.querySelector(
+      'section[data-testid="stSidebar"], aside[data-testid="stSidebar"], [data-testid="stSidebar"]'
+    );
+    if (!sidebar) return;
+    var width = sidebar.offsetWidth || 0;
+    if (width >= 80) return;
+    var btn = doc.querySelector(
+      '[data-testid="stSidebarCollapsedControl"] button, [data-testid="collapsedControl"] button, [data-testid="stSidebarCollapsedControl"], [data-testid="collapsedControl"]'
+    );
+    if (btn) btn.click();
+  }
+  expand();
+  setTimeout(expand, 200);
+  setTimeout(expand, 800);
+})();
+</script>
+""",
+        height=0,
     )
 
 
