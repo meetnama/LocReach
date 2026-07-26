@@ -68,9 +68,9 @@ aside[data-testid="stSidebar"] {{
   opacity: 1 !important;
   transform: none !important;
   margin-left: 0 !important;
-  width: 240px !important;
-  min-width: 240px !important;
-  max-width: 240px !important;
+  width: 280px !important;
+  min-width: 280px !important;
+  max-width: 280px !important;
   overflow: hidden !important;
   background: linear-gradient(180deg, rgba(15,23,42,0.92) 0%, rgba(2,6,23,0.94) 100%) !important;
   border-right: 1px solid rgba(59,130,246,0.35) !important;
@@ -79,8 +79,8 @@ aside[data-testid="stSidebar"] {{
 section[data-testid="stSidebar"] > div,
 aside[data-testid="stSidebar"] > div {{
   background: transparent !important;
-  width: 240px !important;
-  max-width: 240px !important;
+  width: 280px !important;
+  max-width: 280px !important;
   overflow: hidden !important;
   overflow-x: hidden !important;
   overflow-y: hidden !important;
@@ -111,8 +111,20 @@ aside[data-testid="stSidebar"] [data-testid="stPageLink-NavLink"],
 section[data-testid="stSidebar"] a,
 aside[data-testid="stSidebar"] a {{
   white-space: nowrap !important;
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  max-width: none !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  padding-right: 0.75rem !important;
+}}
+section[data-testid="stSidebar"] [data-testid="stPageLink-NavLink"] p,
+aside[data-testid="stSidebar"] [data-testid="stPageLink-NavLink"] p,
+section[data-testid="stSidebar"] a span,
+aside[data-testid="stSidebar"] a span {{
+  overflow: visible !important;
+  text-overflow: clip !important;
+  white-space: nowrap !important;
 }}
 [data-testid="stSidebarResizer"],
 [data-testid="stSidebarResizeHandle"] {{
