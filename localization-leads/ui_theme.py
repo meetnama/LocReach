@@ -4,7 +4,6 @@ ui_theme.py — Shared professional design system for LocReach Streamlit pages.
 import html as _html
 
 import streamlit as st
-import streamlit.components.v1 as components
 
 REACH     = {"400": "#60a5fa", "500": "#3b82f6", "600": "#2563eb"}
 SIGNAL    = {"400": "#c084fc", "500": "#a855f7"}
@@ -37,7 +36,7 @@ section.main {{
   transition: none !important;
   animation: none !important;
 }}
-/* Branded sidebar — do NOT force width (breaks Streamlit resize handle) */
+/* Branded left sidebar (st.navigation position=sidebar) */
 section[data-testid="stSidebar"],
 aside[data-testid="stSidebar"] {{
   display: flex !important;
@@ -50,20 +49,12 @@ section[data-testid="stSidebar"] > div,
 aside[data-testid="stSidebar"] > div {{
   background: transparent !important;
 }}
-/* Hide misaligned resize strip that can cut through sidebar content */
-[data-testid="stSidebarResizer"],
-[data-testid="stSidebarResizeHandle"] {{
-  display: none !important;
-  width: 0 !important;
-  pointer-events: none !important;
-}}
 [data-testid="stSidebarCollapsedControl"],
 [data-testid="collapsedControl"] {{
   display: flex !important;
   visibility: visible !important;
   pointer-events: auto !important;
   color: {SLATE["300"]} !important;
-  z-index: 1000 !important;
 }}
 [data-testid="stSidebarHeader"] {{
   display: flex !important;
@@ -91,34 +82,35 @@ header[data-testid="stHeader"] {{
 }}
 .stDeployButton {{ display: none !important; }}
 
-/* ── Top navigation (st.navigation position=top) ─────────────────────── */
+/* ── Left sidebar page nav (st.navigation position=sidebar) ─────────── */
 [data-testid="stSidebarNav"] {{
   display: flex !important;
   visibility: visible !important;
-  background: linear-gradient(180deg, {SLATE["900"]}, {SLATE["950"]}) !important;
-  border-bottom: 2px solid rgba(59,130,246,0.35) !important;
-  padding: 0 1.5rem !important;
-  box-shadow: 0 6px 24px rgba(0,0,0,0.4) !important;
-  position: sticky !important;
-  top: 0 !important;
-  z-index: 999 !important;
-  min-height: 3rem !important;
+  background: transparent !important;
+  border-bottom: none !important;
+  padding: 0 0.5rem 0.75rem !important;
+  box-shadow: none !important;
+  position: static !important;
+  min-height: 0 !important;
   transition: none !important;
 }}
 [data-testid="stSidebarNav"] ul {{
+  flex-direction: column !important;
   gap: 4px !important;
-  padding: 8px 0 !important;
+  padding: 4px 0 !important;
+  width: 100% !important;
 }}
 [data-testid="stSidebarNav"] li {{
   border-radius: 10px !important;
   overflow: hidden;
+  width: 100% !important;
 }}
 [data-testid="stSidebarNav"] a {{
   border-radius: 10px !important;
   font-weight: 600 !important;
   font-size: 0.84rem !important;
   color: {SLATE["400"]} !important;
-  padding: 10px 18px !important;
+  padding: 10px 14px !important;
 }}
 [data-testid="stSidebarNav"] a:hover {{
   background: {SLATE["800"]} !important;
@@ -366,10 +358,9 @@ div[data-testid="stHorizontalBlock"]:has(a[href*="1_Domains"]) a {{
 
 
 def inject_theme(*, show_home_button: bool = True) -> None:
-    """Inject shared CSS, sidebar nav, app bar, and optional Home shortcut."""
+    """Inject shared CSS, sidebar brand, app bar, and optional Home shortcut."""
     st.markdown(_THEME_CSS, unsafe_allow_html=True)
     _render_sidebar_nav()
-    _ensure_sidebar_expanded()
     st.markdown(
         '<div class="lr-appbar">'
         '<div class="lr-appbar-left">'
@@ -394,41 +385,11 @@ def home_button() -> None:
     )
 
 
-def _ensure_sidebar_expanded() -> None:
-    """Re-open Streamlit's left sidebar if a newer build left it collapsed."""
-    components.html(
-        """
-<script>
-(function () {
-  var doc;
-  try { doc = window.parent.document; } catch (e) { doc = document; }
-  function expand() {
-    var sidebar = doc.querySelector(
-      'section[data-testid="stSidebar"], aside[data-testid="stSidebar"], [data-testid="stSidebar"]'
-    );
-    if (!sidebar) return;
-    var width = sidebar.offsetWidth || 0;
-    if (width >= 80) return;
-    var btn = doc.querySelector(
-      '[data-testid="stSidebarCollapsedControl"] button, [data-testid="collapsedControl"] button, [data-testid="stSidebarCollapsedControl"], [data-testid="collapsedControl"]'
-    );
-    if (btn) btn.click();
-  }
-  expand();
-  setTimeout(expand, 200);
-  setTimeout(expand, 800);
-})();
-</script>
-""",
-        height=0,
-    )
-
-
 def _render_sidebar_nav() -> None:
-    """Left sidebar: brand + links to every app page."""
+    """Left sidebar brand header (page links come from st.navigation)."""
     with st.sidebar:
         sidebar_brand("LR", "Navigate the pipeline")
-        sidebar_pipeline_nav()
+        st.caption("Use the sidebar links to move between pages.")
 
 
 def pipeline_nav_bar() -> None:
