@@ -37,45 +37,33 @@ section.main {{
   transition: none !important;
   animation: none !important;
 }}
-/* Force left sidebar open (Streamlit top-nav builds often collapse it) */
+/* Branded sidebar — do NOT force width (breaks Streamlit resize handle) */
 section[data-testid="stSidebar"],
-aside[data-testid="stSidebar"],
-[data-testid="stSidebar"] {{
+aside[data-testid="stSidebar"] {{
   display: flex !important;
   visibility: visible !important;
   pointer-events: auto !important;
-  opacity: 1 !important;
-  transform: translateX(0) !important;
-  margin-left: 0 !important;
-  left: 0 !important;
-  width: 16.5rem !important;
-  min-width: 16.5rem !important;
-  max-width: 20rem !important;
-  z-index: 100 !important;
   background: linear-gradient(180deg, {SLATE["900"]} 0%, {SLATE["950"]} 100%) !important;
   border-right: 1px solid rgba(59,130,246,0.25) !important;
 }}
 section[data-testid="stSidebar"] > div,
-aside[data-testid="stSidebar"] > div,
-[data-testid="stSidebar"] > div {{
+aside[data-testid="stSidebar"] > div {{
   background: transparent !important;
-  width: 100% !important;
+}}
+/* Hide misaligned resize strip that can cut through sidebar content */
+[data-testid="stSidebarResizer"],
+[data-testid="stSidebarResizeHandle"] {{
+  display: none !important;
+  width: 0 !important;
+  pointer-events: none !important;
 }}
 [data-testid="stSidebarCollapsedControl"],
 [data-testid="collapsedControl"] {{
   display: flex !important;
   visibility: visible !important;
   pointer-events: auto !important;
-  opacity: 1 !important;
+  color: {SLATE["300"]} !important;
   z-index: 1000 !important;
-  color: {SLATE["100"]} !important;
-  background: {REACH["500"]} !important;
-  border-radius: 0 8px 8px 0 !important;
-  box-shadow: 0 2px 10px rgba(59,130,246,0.45) !important;
-}}
-[data-testid="stSidebarCollapsedControl"] button,
-[data-testid="collapsedControl"] button {{
-  color: white !important;
 }}
 [data-testid="stSidebarHeader"] {{
   display: flex !important;
