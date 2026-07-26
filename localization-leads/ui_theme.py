@@ -36,7 +36,7 @@ section.main {{
   transition: none !important;
   animation: none !important;
 }}
-/* Left navigation sidebar — keep open and visible */
+/* Left navigation sidebar — fixed width, no scroll */
 section[data-testid="stSidebar"],
 aside[data-testid="stSidebar"] {{
   display: flex !important;
@@ -44,9 +44,10 @@ aside[data-testid="stSidebar"] {{
   opacity: 1 !important;
   transform: none !important;
   margin-left: 0 !important;
-  width: 17.5rem !important;
-  min-width: 17.5rem !important;
-  max-width: 17.5rem !important;
+  width: 240px !important;
+  min-width: 240px !important;
+  max-width: 240px !important;
+  overflow: hidden !important;
   background: linear-gradient(180deg, {SLATE["900"]} 0%, {SLATE["950"]} 100%) !important;
   border-right: 1px solid rgba(59,130,246,0.35) !important;
   z-index: 999 !important;
@@ -54,7 +55,24 @@ aside[data-testid="stSidebar"] {{
 section[data-testid="stSidebar"] > div,
 aside[data-testid="stSidebar"] > div {{
   background: transparent !important;
-  width: 100% !important;
+  width: 240px !important;
+  max-width: 240px !important;
+  overflow: hidden !important;
+  overflow-x: hidden !important;
+  overflow-y: hidden !important;
+}}
+section[data-testid="stSidebar"] ::-webkit-scrollbar,
+aside[data-testid="stSidebar"] ::-webkit-scrollbar {{
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}}
+section[data-testid="stSidebar"],
+aside[data-testid="stSidebar"],
+section[data-testid="stSidebar"] *,
+aside[data-testid="stSidebar"] * {{
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
 }}
 section[data-testid="stSidebar"] p,
 section[data-testid="stSidebar"] span,
@@ -63,6 +81,14 @@ aside[data-testid="stSidebar"] p,
 aside[data-testid="stSidebar"] span,
 aside[data-testid="stSidebar"] label {{
   color: {SLATE["200"]} !important;
+}}
+section[data-testid="stSidebar"] [data-testid="stPageLink-NavLink"],
+aside[data-testid="stSidebar"] [data-testid="stPageLink-NavLink"],
+section[data-testid="stSidebar"] a,
+aside[data-testid="stSidebar"] a {{
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
 }}
 [data-testid="stSidebarResizer"],
 [data-testid="stSidebarResizeHandle"] {{
@@ -545,15 +571,13 @@ def link_icon(url: str) -> str:
 
 
 def sidebar_pipeline_nav() -> None:
-    """Quick links to Home, each pipeline step, and Database."""
+    """Compact fixed-width sidebar links (no scroll)."""
     st.markdown("**Navigate**")
-    st.page_link("pages/0_Home.py",     label="Home",              icon="🏠", use_container_width=True)
-    st.page_link("pages/1_Domains.py",  label="Step 1 · Domains",  icon="🔍", use_container_width=True)
-    st.page_link("pages/2_People.py",   label="Step 2 · People",   icon="👥", use_container_width=True)
-    st.page_link("pages/3_Emails.py",   label="Step 3 · Emails",   icon="📧", use_container_width=True)
-    st.page_link("pages/4_Database.py", label="Database",          icon="🗄️", use_container_width=True)
-    st.markdown("---")
-    st.caption("Use this sidebar to move between pages.")
+    st.page_link("pages/0_Home.py",     label="Home",     icon="🏠", use_container_width=True)
+    st.page_link("pages/1_Domains.py",  label="Step 1",   icon="🔍", use_container_width=True)
+    st.page_link("pages/2_People.py",   label="Step 2",   icon="👥", use_container_width=True)
+    st.page_link("pages/3_Emails.py",   label="Step 3",   icon="📧", use_container_width=True)
+    st.page_link("pages/4_Database.py", label="Database", icon="🗄️", use_container_width=True)
 
 
 def pipeline_cards(steps) -> None:
