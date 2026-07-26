@@ -1,7 +1,9 @@
 """
 ui_theme.py — Shared professional design system for LocReach Streamlit pages.
 """
+import base64
 import html as _html
+from pathlib import Path
 
 import streamlit as st
 import streamlit.components.v1 as components
@@ -17,6 +19,23 @@ SLATE     = {
     "200": "#e2e8f0", "100": "#f1f5f9",
 }
 
+
+def _locreach_bg_data_uri() -> str:
+    path = Path(__file__).resolve().parent / "assets" / "locreach_bg.png"
+    if not path.is_file():
+        return ""
+    b64 = base64.b64encode(path.read_bytes()).decode("ascii")
+    return f"data:image/png;base64,{b64}"
+
+
+_BG_URI = _locreach_bg_data_uri()
+_BG_LAYERS = (
+    f'linear-gradient(180deg, rgba(2,6,23,0.78) 0%, rgba(2,6,23,0.62) 45%, rgba(2,6,23,0.82) 100%), '
+    f'url("{_BG_URI}")'
+    if _BG_URI
+    else f'radial-gradient(ellipse 120% 80% at 10% -10%, #0b1b34 0%, {SLATE["950"]} 42%, #010409 100%)'
+)
+
 _THEME_CSS = f"""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
@@ -26,7 +45,12 @@ html, body, .stApp {{
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
 }}
 .stApp {{
-  background: radial-gradient(ellipse 120% 80% at 10% -10%, #0b1b34 0%, {SLATE["950"]} 42%, #010409 100%) fixed !important;
+  background-color: {SLATE["950"]} !important;
+  background-image: {_BG_LAYERS} !important;
+  background-size: cover !important;
+  background-position: center center !important;
+  background-repeat: no-repeat !important;
+  background-attachment: fixed !important;
 }}
 /* Stable layout with branded sidebar */
 [data-testid="stAppViewContainer"],
@@ -35,11 +59,12 @@ html, body, .stApp {{
 section.main {{
   transition: none !important;
   animation: none !important;
+  background: transparent !important;
 }}
 /* Custom left sidebar (st.page_link content — always owned by LocReach) */
 section[data-testid="stSidebar"],
 aside[data-testid="stSidebar"] {{
-  background: linear-gradient(180deg, {SLATE["900"]} 0%, {SLATE["950"]} 100%) !important;
+  background: linear-gradient(180deg, rgba(15,23,42,0.92) 0%, rgba(2,6,23,0.94) 100%) !important;
   border-right: 1px solid rgba(59,130,246,0.25) !important;
 }}
 section[data-testid="stSidebar"] > div,
