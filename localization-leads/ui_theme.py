@@ -331,9 +331,10 @@ div[data-testid="stHorizontalBlock"]:has(a[href*="1_Domains"]) a {{
 /* Sidebar logo (transparent PNG — not a boxed image card) */
 .lr-sidebar-logo {{
   display: block;
-  width: 100%;
-  height: auto;
-  margin: 4px 0 14px 0;
+  width: 118% !important;
+  max-width: none !important;
+  height: auto !important;
+  margin: 2px 0 12px -9% !important;
   padding: 0;
   background: transparent !important;
   border: none !important;
@@ -347,6 +348,8 @@ aside[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] {{
 section[data-testid="stSidebar"] img.lr-sidebar-logo,
 aside[data-testid="stSidebar"] img.lr-sidebar-logo {{
   background: transparent !important;
+  width: 118% !important;
+  max-width: none !important;
 }}
 
 /* Sidebar brand (text fallback) */
