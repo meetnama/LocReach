@@ -423,7 +423,7 @@ div[data-testid="stHorizontalBlock"]:has(a[href*="1_Domains"]) a {{
 def render_app_sidebar() -> None:
     """Left sidebar navigation — call from app entry and from each page theme."""
     with st.sidebar:
-        sidebar_brand("LR", "Navigate the pipeline")
+        sidebar_brand()
         sidebar_pipeline_nav()
 
 
@@ -500,8 +500,12 @@ def pipeline_nav_bar() -> None:
         st.page_link("pages/4_Database.py", label="Database",         icon="🗄️", use_container_width=True)
 
 
-def sidebar_brand(step_icon: str, step_label: str) -> None:
-    """Branded sidebar header."""
+def sidebar_brand(step_icon: str = "LR", step_label: str = "Navigate the pipeline") -> None:
+    """Sidebar header — LocReach logo image (fallback to text brand)."""
+    logo_path = Path(__file__).resolve().parent / "assets" / "locreach_logo.png"
+    if logo_path.is_file():
+        st.image(str(logo_path), use_container_width=True)
+        return
     st.markdown(
         f'<div class="lr-sb-brand">'
         f'<div class="lr-sb-brand-icon">{_html.escape(step_icon)}</div>'
