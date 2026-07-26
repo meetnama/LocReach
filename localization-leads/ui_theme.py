@@ -310,7 +310,28 @@ div[data-testid="stHorizontalBlock"]:has(a[href*="1_Domains"]) a {{
   border-radius: 10px !important;
 }}
 
-/* Sidebar brand */
+/* Sidebar logo (transparent PNG — not a boxed image card) */
+.lr-sidebar-logo {{
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: 4px 0 14px 0;
+  padding: 0;
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}}
+section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"],
+aside[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] {{
+  background: transparent !important;
+}}
+section[data-testid="stSidebar"] img.lr-sidebar-logo,
+aside[data-testid="stSidebar"] img.lr-sidebar-logo {{
+  background: transparent !important;
+}}
+
+/* Sidebar brand (text fallback) */
 .lr-sb-brand {{
   display:flex; align-items:center; gap:10px; margin-bottom: 16px;
   padding: 12px; border-radius: 12px;
@@ -510,15 +531,13 @@ def pipeline_nav_bar() -> None:
 
 
 def sidebar_brand(step_icon: str = "LR", step_label: str = "Navigate the pipeline") -> None:
-    """Sidebar header — LocReach logo image (fallback to text brand)."""
+    """Sidebar header — LocReach logo with transparent background."""
     logo_path = Path(__file__).resolve().parent / "assets" / "locreach_logo.png"
     if logo_path.is_file():
-        # Markdown <img> avoids Streamlit's image fullscreen control.
         b64 = base64.b64encode(logo_path.read_bytes()).decode("ascii")
         st.markdown(
-            f'<img src="data:image/png;base64,{b64}" alt="LocReach" '
-            f'style="width:100%;height:auto;display:block;border-radius:8px;'
-            f'margin:0 0 10px 0;" />',
+            f'<img class="lr-sidebar-logo" src="data:image/png;base64,{b64}" '
+            f'alt="LocReach" />',
             unsafe_allow_html=True,
         )
         return
