@@ -19,7 +19,7 @@ HEARTBEAT_PORT = 8502
 # Must exceed Chrome's background-tab timer throttle (~60s) and any long
 # Streamlit rerender. Heartbeat now runs on window.parent so iframe remounts
 # during Step 1 auto-refresh no longer drop pings — this is belt-and-suspenders.
-SHUTDOWN_TIMEOUT = 180
+SHUTDOWN_TIMEOUT = 300
 STARTUP_GRACE = 90
 
 _last_heartbeat = time.time()

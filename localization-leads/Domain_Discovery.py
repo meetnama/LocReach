@@ -24,6 +24,7 @@ if _heartbeat_port:
     # Step 1 auto-refreshes remount this iframe every ~1.5s; an iframe-scoped
     # setInterval dies on each remount and the run_app.py watchdog then kills
     # Streamlit (Connection error) even though the tab is still open.
+    # Always re-ping on remount; re-arm the parent interval if it was lost.
     components.html(
         f"""
 <script>
@@ -35,12 +36,8 @@ if _heartbeat_port:
   }} catch (e) {{
     root = window;
   }}
-  if (root.__locreachHeartbeat) return;
-  root.__locreachHeartbeat = true;
 
   var port = '{_heartbeat_port}';
-  // Define ping ON the parent so it survives this iframe being destroyed
-  // on every Streamlit rerun.
   root.__locreachPing = function() {{
     try {{
       fetch('http://127.0.0.1:' + port + '/heartbeat', {{
@@ -56,14 +53,21 @@ if _heartbeat_port:
     }} catch (e) {{}}
   }};
 
+  // Every Streamlit rerun remounts this iframe — ping immediately so the
+  // watchdog never sees a false "tab closed" during Step 1 auto-refresh.
   root.__locreachPing();
-  root.setInterval(function() {{ root.__locreachPing(); }}, 3000);
-  root.document.addEventListener('visibilitychange', function() {{
-    if (!root.document.hidden) root.__locreachPing();
-  }});
-  // Real tab/window close only — never bind to this iframe.
-  root.addEventListener('pagehide', root.__locreachSignalClose);
-  root.addEventListener('beforeunload', root.__locreachSignalClose);
+
+  if (!root.__locreachHeartbeatInterval) {{
+    root.__locreachHeartbeatInterval = root.setInterval(function() {{
+      root.__locreachPing();
+    }}, 3000);
+    root.document.addEventListener('visibilitychange', function() {{
+      if (!root.document.hidden) root.__locreachPing();
+    }});
+    root.addEventListener('pagehide', root.__locreachSignalClose);
+    root.addEventListener('beforeunload', root.__locreachSignalClose);
+  }}
+  root.__locreachHeartbeat = true;
 }})();
 </script>
 """,

@@ -6,7 +6,6 @@ import html as _html
 from pathlib import Path
 
 import streamlit as st
-import streamlit.components.v1 as components
 
 REACH     = {"400": "#60a5fa", "500": "#3b82f6", "600": "#2563eb"}
 SIGNAL    = {"400": "#c084fc", "500": "#a855f7"}
@@ -552,7 +551,8 @@ def inject_theme(*, show_home_button: bool = True) -> None:
     """Inject shared CSS, sidebar nav, and optional Home shortcut."""
     st.markdown(_THEME_CSS, unsafe_allow_html=True)
     render_app_sidebar()
-    _ensure_sidebar_expanded()
+    # Do not mount components.html here — Step 1 auto-reruns ~1.5s and that
+    # remount spam previously flooded logs and competed with the heartbeat iframe.
     if show_home_button:
         home_button()
 
@@ -563,40 +563,6 @@ def home_button() -> None:
         "pages/0_Home.py",
         label="← Back to Home",
         icon="🏠",
-    )
-
-
-def _ensure_sidebar_expanded() -> None:
-    """Click Streamlit's expand control if the left sidebar is collapsed."""
-    components.html(
-        """
-<script>
-(function () {
-  var doc;
-  try { doc = window.parent.document; } catch (e) { doc = document; }
-  function expand() {
-    var sidebar = doc.querySelector(
-      'section[data-testid="stSidebar"], aside[data-testid="stSidebar"]'
-    );
-    if (sidebar && (sidebar.offsetWidth || 0) >= 120) return;
-    var btn = doc.querySelector(
-      '[data-testid="stSidebarCollapsedControl"] button, [data-testid="collapsedControl"] button'
-    );
-    if (!btn) {
-      btn = doc.querySelector(
-        '[data-testid="stSidebarCollapsedControl"], [data-testid="collapsedControl"]'
-      );
-    }
-    if (btn) btn.click();
-  }
-  expand();
-  setTimeout(expand, 150);
-  setTimeout(expand, 600);
-  setTimeout(expand, 1200);
-})();
-</script>
-""",
-        height=0,
     )
 
 
