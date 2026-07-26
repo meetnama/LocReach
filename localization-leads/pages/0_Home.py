@@ -12,9 +12,7 @@ import streamlit.components.v1 as components
 from db import (
     db_init, db_count_domains, db_count_leads, db_load_people_without_email,
 )
-from ui_theme import (
-    inject_theme, stat_cards,
-)
+from ui_theme import inject_theme
 from template_render import render_pipeline_snapshot
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -31,23 +29,6 @@ _people_todo   = len(db_load_people_without_email(_conn))
 _people_done   = _people_total - _people_todo
 _leads         = db_count_leads(_conn)
 _conn.close()
-
-# ── Hero ──────────────────────────────────────────────────────────────────────
-st.markdown(
-    '<div class="lr-hero">'
-    '<p class="lr-hero-title">Welcome to LocReach</p>'
-    '<p class="lr-hero-sub">Your 3-step B2B lead pipeline for the localization industry. '
-    'Find qualified companies, discover decision-makers, and verify contact emails.</p>'
-    '</div>',
-    unsafe_allow_html=True,
-)
-
-stat_cards([
-    ("Qualified Domains", _qualified,                    "qualified"),
-    ("People Found",      _people_total,                 "signal"),
-    ("Awaiting Email",    _people_todo,                  "pipeline"),
-    ("Verified Leads",    _leads,                        "reach"),
-])
 
 # ── Live pipeline snapshot (read-only, Jinja-rendered) ──────────────────────────
 # Rendered from templates/_pipeline_snapshot_embed.html and embedded as a static
