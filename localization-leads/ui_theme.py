@@ -428,16 +428,10 @@ def render_app_sidebar() -> None:
 
 
 def inject_theme(*, show_home_button: bool = True) -> None:
-    """Inject shared CSS, sidebar nav, in-page nav strip, and Home shortcut."""
+    """Inject shared CSS, sidebar nav, and optional Home shortcut."""
     st.markdown(_THEME_CSS, unsafe_allow_html=True)
     render_app_sidebar()
     _ensure_sidebar_expanded()
-    # Always-visible fallback if Streamlit collapses the left panel.
-    st.markdown(
-        '<div class="lr-nav-strip"><span class="lr-nav-strip-title">NAVIGATION</span></div>',
-        unsafe_allow_html=True,
-    )
-    pipeline_nav_bar()
     if show_home_button:
         home_button()
 
