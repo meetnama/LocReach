@@ -42,6 +42,7 @@ _THEME_CSS = f"""
 /* ── Base / app shell ─────────────────────────────────────────────────── */
 html, body, .stApp {{
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+  color: #ffffff !important;
 }}
 .stApp {{
   background-color: {SLATE["950"]} !important;
@@ -50,6 +51,20 @@ html, body, .stApp {{
   background-position: center center !important;
   background-repeat: no-repeat !important;
   background-attachment: fixed !important;
+}}
+/* App-wide white text */
+.stApp p, .stApp span, .stApp label, .stApp li, .stApp a,
+.stApp h1, .stApp h2, .stApp h3, .stApp h4, .stApp h5, .stApp h6,
+.stApp [data-testid="stMarkdownContainer"],
+.stApp [data-testid="stCaptionContainer"],
+.stApp [data-testid="stWidgetLabel"],
+.stApp [data-testid="stMetricLabel"],
+.stApp [data-testid="stMetricValue"],
+.stApp .stCaption, .stApp small, .stApp code {{
+  color: #ffffff !important;
+}}
+.stApp button, .stApp [data-testid="stPageLink-NavLink"] {{
+  color: #ffffff !important;
 }}
 /* Stable layout with branded sidebar */
 [data-testid="stAppViewContainer"],
@@ -68,9 +83,9 @@ aside[data-testid="stSidebar"] {{
   opacity: 1 !important;
   transform: none !important;
   margin-left: 0 !important;
-  width: 280px !important;
-  min-width: 280px !important;
-  max-width: 280px !important;
+  width: 200px !important;
+  min-width: 200px !important;
+  max-width: 200px !important;
   overflow: hidden !important;
   background: linear-gradient(180deg, rgba(15,23,42,0.92) 0%, rgba(2,6,23,0.94) 100%) !important;
   border-right: 1px solid rgba(59,130,246,0.35) !important;
@@ -79,8 +94,8 @@ aside[data-testid="stSidebar"] {{
 section[data-testid="stSidebar"] > div,
 aside[data-testid="stSidebar"] > div {{
   background: transparent !important;
-  width: 280px !important;
-  max-width: 280px !important;
+  width: 200px !important;
+  max-width: 200px !important;
   overflow: hidden !important;
   overflow-x: hidden !important;
   overflow-y: hidden !important;
@@ -104,7 +119,7 @@ section[data-testid="stSidebar"] label,
 aside[data-testid="stSidebar"] p,
 aside[data-testid="stSidebar"] span,
 aside[data-testid="stSidebar"] label {{
-  color: {SLATE["200"]} !important;
+  color: #ffffff !important;
 }}
 section[data-testid="stSidebar"] [data-testid="stPageLink-NavLink"],
 aside[data-testid="stSidebar"] [data-testid="stPageLink-NavLink"],
@@ -116,7 +131,9 @@ aside[data-testid="stSidebar"] a {{
   max-width: none !important;
   width: 100% !important;
   box-sizing: border-box !important;
-  padding-right: 0.75rem !important;
+  padding-right: 0.5rem !important;
+  color: #ffffff !important;
+  font-size: 0.9rem !important;
 }}
 section[data-testid="stSidebar"] [data-testid="stPageLink-NavLink"] p,
 aside[data-testid="stSidebar"] [data-testid="stPageLink-NavLink"] p,
@@ -125,6 +142,7 @@ aside[data-testid="stSidebar"] a span {{
   overflow: visible !important;
   text-overflow: clip !important;
   white-space: nowrap !important;
+  color: #ffffff !important;
 }}
 [data-testid="stSidebarResizer"],
 [data-testid="stSidebarResizeHandle"] {{
@@ -201,7 +219,7 @@ header[data-testid="stHeader"] {{
 }}
 
 /* ── Typography ─────────────────────────────────────────────────────── */
-h1, h2, h3 {{ font-weight: 800 !important; letter-spacing: -0.02em; color: {SLATE["100"]} !important; }}
+h1, h2, h3 {{ font-weight: 800 !important; letter-spacing: -0.02em; color: #ffffff !important; }}
 
 /* ── Buttons ─────────────────────────────────────────────────────────── */
 .stButton > button, .stDownloadButton > button {{
