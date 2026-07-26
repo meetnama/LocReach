@@ -122,7 +122,51 @@ aside[data-testid="stSidebar"] span,
 aside[data-testid="stSidebar"] label {{
   color: #ffffff !important;
 }}
-/* Sidebar nav links — full label + consistent hover/active for all items */
+/* Sidebar nav buttons — hover + current-page marker */
+section[data-testid="stSidebar"] .stButton > button,
+aside[data-testid="stSidebar"] .stButton > button {{
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 0.45rem !important;
+  width: 100% !important;
+  margin: 3px 0 !important;
+  padding: 0.55rem 0.7rem !important;
+  border-radius: 10px !important;
+  border: 1px solid transparent !important;
+  background: transparent !important;
+  color: #ffffff !important;
+  font-size: 0.92rem !important;
+  font-weight: 600 !important;
+  box-shadow: none !important;
+  transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease !important;
+}}
+section[data-testid="stSidebar"] .stButton > button:hover:not(:disabled),
+aside[data-testid="stSidebar"] .stButton > button:hover:not(:disabled) {{
+  background: rgba(59,130,246,0.24) !important;
+  border-color: rgba(59,130,246,0.35) !important;
+  color: #ffffff !important;
+  transform: none !important;
+  box-shadow: none !important;
+}}
+section[data-testid="stSidebar"] .stButton > button[kind="primary"],
+aside[data-testid="stSidebar"] .stButton > button[kind="primary"],
+section[data-testid="stSidebar"] .stButton > button[data-testid="baseButton-primary"],
+aside[data-testid="stSidebar"] .stButton > button[data-testid="baseButton-primary"] {{
+  background: rgba(59,130,246,0.34) !important;
+  border: 1px solid rgba(96,165,250,0.65) !important;
+  border-left: 4px solid {REACH["400"]} !important;
+  color: #ffffff !important;
+  box-shadow: inset 0 0 0 1px rgba(59,130,246,0.25) !important;
+  font-weight: 700 !important;
+}}
+section[data-testid="stSidebar"] .stButton > button:disabled,
+aside[data-testid="stSidebar"] .stButton > button:disabled {{
+  opacity: 1 !important;
+  cursor: default !important;
+  color: #ffffff !important;
+}}
+/* Keep page_link styles as fallback */
 section[data-testid="stSidebar"] [data-testid="stPageLink-NavLink"],
 aside[data-testid="stSidebar"] [data-testid="stPageLink-NavLink"],
 section[data-testid="stSidebar"] a[href],
@@ -184,8 +228,9 @@ section[data-testid="stSidebar"] [data-testid="stPageLink-NavLink"][aria-current
 aside[data-testid="stSidebar"] [data-testid="stPageLink-NavLink"][aria-current="page"],
 section[data-testid="stSidebar"] a[aria-current="page"],
 aside[data-testid="stSidebar"] a[aria-current="page"] {{
-  background: rgba(59,130,246,0.30) !important;
-  border-color: rgba(59,130,246,0.45) !important;
+  background: rgba(59,130,246,0.34) !important;
+  border: 1px solid rgba(96,165,250,0.65) !important;
+  border-left: 4px solid {REACH["400"]} !important;
   color: #ffffff !important;
 }}
 section[data-testid="stSidebar"] [data-testid="stPageLink-NavLink"][aria-current="page"] p,
@@ -697,13 +742,54 @@ def link_icon(url: str) -> str:
     return f'<a href="{safe}" target="_blank" class="lr-link">↗</a>'
 
 
+def _current_page_filename() -> str:
+    """Best-effort current page script name (e.g. '1_Domains.py')."""
+    try:
+        from streamlit.runtime.scriptrunner_utils.script_run_context import (
+            get_script_run_ctx,
+        )
+        ctx = get_script_run_ctx()
+        if ctx is not None:
+            path = getattr(ctx, "main_script_path", None) or ""
+            if path:
+                return str(path).replace("\\", "/").rsplit("/", 1)[-1]
+    except Exception:
+        pass
+    import inspect
+    for fr in inspect.stack():
+        f = fr.filename.replace("\\", "/")
+        if "/pages/" in f and f.endswith(".py"):
+            return f.rsplit("/", 1)[-1]
+    return ""
+
+
 def sidebar_pipeline_nav() -> None:
-    """Compact fixed-width sidebar links (no scroll)."""
-    st.page_link("pages/0_Home.py",     label="Home",     icon="🏠", use_container_width=True)
-    st.page_link("pages/1_Domains.py",  label="Step 1",   icon="🔍", use_container_width=True)
-    st.page_link("pages/2_People.py",   label="Step 2",   icon="👥", use_container_width=True)
-    st.page_link("pages/3_Emails.py",   label="Step 3",   icon="📧", use_container_width=True)
-    st.page_link("pages/4_Database.py", label="Database", icon="🗄️", use_container_width=True)
+    """Sidebar links with hover + clear marker for the current page."""
+    current = _current_page_filename()
+    items = [
+        ("0_Home.py",     "pages/0_Home.py",     "🏠  Home"),
+        ("1_Domains.py",  "pages/1_Domains.py",  "🔍  Step 1"),
+        ("2_People.py",   "pages/2_People.py",   "👥  Step 2"),
+        ("3_Emails.py",   "pages/3_Emails.py",   "📧  Step 3"),
+        ("4_Database.py", "pages/4_Database.py", "🗄️  Database"),
+    ]
+    for fname, page, label in items:
+        is_active = bool(current) and (current == fname or current.endswith("/" + fname))
+        if is_active:
+            st.button(
+                label,
+                key=f"lr_nav_active_{fname}",
+                use_container_width=True,
+                type="primary",
+                disabled=True,
+            )
+        else:
+            if st.button(
+                label,
+                key=f"lr_nav_{fname}",
+                use_container_width=True,
+            ):
+                st.switch_page(page)
 
 
 def pipeline_cards(steps) -> None:
