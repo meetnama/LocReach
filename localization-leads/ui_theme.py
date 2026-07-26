@@ -255,8 +255,8 @@ h1, h2, h3 {{ font-weight: 800 !important; letter-spacing: -0.02em; color: #ffff
   color: {SLATE["100"]} !important;
 }}
 .stTextInput label, .stSelectbox label, .stRadio label, .stCheckbox label,
-.stNumberInput label {{ color: {SLATE["400"]} !important; font-weight: 600 !important; font-size: 0.78rem !important; }}
-.stRadio label, .stCheckbox label {{ color: {SLATE["300"]} !important; }}
+.stNumberInput label {{ color: #ffffff !important; font-weight: 600 !important; font-size: 0.78rem !important; }}
+.stRadio label, .stCheckbox label {{ color: #ffffff !important; }}
 
 /* ── Metrics (fallback if sidebar_metrics not used) ─────────────────── */
 [data-testid="stMetric"] {{
@@ -265,8 +265,8 @@ h1, h2, h3 {{ font-weight: 800 !important; letter-spacing: -0.02em; color: #ffff
   border-radius: 12px;
   padding: 12px 14px;
 }}
-[data-testid="stMetricValue"] {{ color: {REACH["400"]} !important; font-weight: 800 !important; }}
-[data-testid="stMetricLabel"] {{ color: {SLATE["500"]} !important; font-size: 0.72rem !important; }}
+[data-testid="stMetricValue"] {{ color: #ffffff !important; font-weight: 800 !important; }}
+[data-testid="stMetricLabel"] {{ color: #ffffff !important; font-size: 0.72rem !important; }}
 
 /* ── Progress ───────────────────────────────────────────────────────── */
 .stProgress > div > div > div > div {{
