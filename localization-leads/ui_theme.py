@@ -130,20 +130,35 @@ aside[data-testid="stSidebar"] a span {{
 [data-testid="stSidebarResizeHandle"] {{
   display: none !important;
 }}
+/* Hide Streamlit sidebar chrome: collapse chevron + image fullscreen */
 [data-testid="stSidebarCollapsedControl"],
-[data-testid="collapsedControl"] {{
-  display: flex !important;
-  visibility: visible !important;
-  pointer-events: auto !important;
-  opacity: 1 !important;
-  z-index: 100000 !important;
-  color: {SLATE["100"]} !important;
-  background: {REACH["500"]} !important;
-  border-radius: 0 8px 8px 0 !important;
+[data-testid="collapsedControl"],
+[data-testid="stSidebarCollapseButton"],
+[data-testid="stSidebarCollapse"],
+section[data-testid="stSidebar"] [data-testid="stElementToolbar"],
+aside[data-testid="stSidebar"] [data-testid="stElementToolbar"],
+section[data-testid="stSidebar"] [data-testid="StyledFullScreenButton"],
+aside[data-testid="stSidebar"] [data-testid="StyledFullScreenButton"],
+section[data-testid="stSidebar"] button[title="View fullscreen"],
+aside[data-testid="stSidebar"] button[title="View fullscreen"],
+section[data-testid="stSidebar"] button[title="Fullscreen"],
+aside[data-testid="stSidebar"] button[title="Fullscreen"],
+section[data-testid="stSidebar"] [class*="StyledFullScreenButton"],
+aside[data-testid="stSidebar"] [class*="StyledFullScreenButton"] {{
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  opacity: 0 !important;
 }}
 [data-testid="stSidebarHeader"] {{
-  display: flex !important;
-  visibility: visible !important;
+  display: none !important;
+  visibility: hidden !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
 }}
 header[data-testid="stHeader"] {{
   background: transparent !important;
@@ -498,7 +513,14 @@ def sidebar_brand(step_icon: str = "LR", step_label: str = "Navigate the pipelin
     """Sidebar header — LocReach logo image (fallback to text brand)."""
     logo_path = Path(__file__).resolve().parent / "assets" / "locreach_logo.png"
     if logo_path.is_file():
-        st.image(str(logo_path), use_container_width=True)
+        # Markdown <img> avoids Streamlit's image fullscreen control.
+        b64 = base64.b64encode(logo_path.read_bytes()).decode("ascii")
+        st.markdown(
+            f'<img src="data:image/png;base64,{b64}" alt="LocReach" '
+            f'style="width:100%;height:auto;display:block;border-radius:8px;'
+            f'margin:0 0 10px 0;" />',
+            unsafe_allow_html=True,
+        )
         return
     st.markdown(
         f'<div class="lr-sb-brand">'
