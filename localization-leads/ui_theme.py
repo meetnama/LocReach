@@ -386,10 +386,10 @@ div[data-testid="stHorizontalBlock"]:has(a[href*="1_Domains"]) a {{
 /* Sidebar logo (transparent PNG — not a boxed image card) */
 .lr-sidebar-logo {{
   display: block;
-  width: 118% !important;
+  width: 92% !important;
   max-width: none !important;
   height: auto !important;
-  margin: 2px 0 12px -9% !important;
+  margin: 8px auto 16px auto !important;
   padding: 0;
   background: transparent !important;
   border: none !important;
@@ -403,8 +403,17 @@ aside[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] {{
 section[data-testid="stSidebar"] img.lr-sidebar-logo,
 aside[data-testid="stSidebar"] img.lr-sidebar-logo {{
   background: transparent !important;
-  width: 118% !important;
+  width: 92% !important;
   max-width: none !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+}}
+/* Center the markdown block that holds the logo */
+section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"]:has(img.lr-sidebar-logo),
+aside[data-testid="stSidebar"] [data-testid="stMarkdownContainer"]:has(img.lr-sidebar-logo) {{
+  display: flex !important;
+  justify-content: center !important;
+  text-align: center !important;
 }}
 
 /* Sidebar brand (text fallback) */
@@ -607,13 +616,14 @@ def pipeline_nav_bar() -> None:
 
 
 def sidebar_brand(step_icon: str = "LR", step_label: str = "Navigate the pipeline") -> None:
-    """Sidebar header — LocReach logo with transparent background."""
+    """Sidebar header — centered LocReach logo with transparent background."""
     logo_path = Path(__file__).resolve().parent / "assets" / "locreach_logo.png"
     if logo_path.is_file():
         b64 = base64.b64encode(logo_path.read_bytes()).decode("ascii")
         st.markdown(
+            f'<div style="display:flex;justify-content:center;width:100%;">'
             f'<img class="lr-sidebar-logo" src="data:image/png;base64,{b64}" '
-            f'alt="LocReach" />',
+            f'alt="LocReach" /></div>',
             unsafe_allow_html=True,
         )
         return
@@ -723,7 +733,6 @@ def link_icon(url: str) -> str:
 
 def sidebar_pipeline_nav() -> None:
     """Compact fixed-width sidebar links (no scroll)."""
-    st.markdown("**Navigate**")
     st.page_link("pages/0_Home.py",     label="Home",     icon="🏠", use_container_width=True)
     st.page_link("pages/1_Domains.py",  label="Step 1",   icon="🔍", use_container_width=True)
     st.page_link("pages/2_People.py",   label="Step 2",   icon="👥", use_container_width=True)
