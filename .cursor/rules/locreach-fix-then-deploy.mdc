@@ -1,13 +1,16 @@
 ﻿---
-description: Fix LocReach bugs locally, then push so Render deploys online
+description: PERMANENT — local first, then push every LocReach session to Render
 alwaysApply: true
 ---
 
-# LocReach: local fix → online deploy
+# LocReach: local fix → online deploy (PERMANENT)
 
-For any platform bug, comment, or fix request on LocReach:
+**Permanent rule — never skip.**
 
-1. Fix and verify **locally** first (`localization-leads` / related config).
-2. Then **push to GitHub** (`meetnama/LocReach`) so Render auto-deploys to https://locreach.onrender.com.
+For any platform bug, comment, update, or fix request on LocReach:
+
+1. Implement and verify **locally** first (`localization-leads` / related config).
+2. At the **end of every session** that produced LocReach changes: commit (when there is work) and **push to GitHub** (`meetnama/LocReach`) so Render auto-deploys to https://locreach.onrender.com.
 3. Do not leave fixes only on the local machine.
 4. If the change involves SearXNG or OpenSERP Docker/config, push those too so the matching Render services update.
+5. End-of-session commit+push is standing permission for LocReach work (never commit secrets/`.env`).
