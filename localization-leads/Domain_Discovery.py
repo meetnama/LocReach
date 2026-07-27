@@ -48,6 +48,9 @@ if _heartbeat_port:
     }} catch (e) {{}}
   }};
   root.__locreachSignalClose = function() {{
+    // Soft signal only — Streamlit multipage (/domains) and refresh fire
+    // pagehide/beforeunload while the tab stays open. run_app waits for
+    // heartbeats to stop before exiting; a remount ping cancels the close.
     try {{
       navigator.sendBeacon('http://127.0.0.1:' + port + '/closing');
     }} catch (e) {{}}
@@ -67,6 +70,8 @@ if _heartbeat_port:
     root.addEventListener('pagehide', root.__locreachSignalClose);
     root.addEventListener('beforeunload', root.__locreachSignalClose);
   }}
+  // Remount after navigation: cancel any soft-close from the prior page.
+  root.__locreachPing();
   root.__locreachHeartbeat = true;
 }})();
 </script>

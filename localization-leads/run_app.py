@@ -21,9 +21,14 @@ HEARTBEAT_PORT = 8502
 # during Step 1 auto-refresh no longer drop pings — this is belt-and-suspenders.
 SHUTDOWN_TIMEOUT = 300
 STARTUP_GRACE = 90
+# Streamlit multipage (/home → /domains) and refresh fire pagehide/beforeunload
+# even though the tab stays open. Never kill immediately on /closing — wait
+# for heartbeats to stop. A real tab close resumes nothing → exit after this.
+CLOSE_GRACE = 20
 
 _last_heartbeat = time.time()
 _got_heartbeat = False
+_closing_at: float | None = None
 _heartbeat_lock = threading.Lock()
 _streamlit_proc: subprocess.Popen | None = None
 _shutting_down = False
@@ -63,10 +68,13 @@ def _setup_logging() -> None:
 
 class _HeartbeatHandler(BaseHTTPRequestHandler):
     def _accept(self) -> None:
-        global _last_heartbeat, _got_heartbeat
+        global _last_heartbeat, _got_heartbeat, _closing_at
         with _heartbeat_lock:
             _last_heartbeat = time.time()
             _got_heartbeat = True
+            # Navigation/refresh often fires /closing then remounts and pings —
+            # a live heartbeat always cancels a soft-close.
+            _closing_at = None
         self.send_response(204)
         self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
@@ -79,6 +87,7 @@ class _HeartbeatHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_POST(self) -> None:
+        global _closing_at
         path = self.path.rstrip("/")
         if path == "/heartbeat":
             self._accept()
@@ -86,8 +95,13 @@ class _HeartbeatHandler(BaseHTTPRequestHandler):
             self.send_response(204)
             self.send_header("Access-Control-Allow-Origin", "*")
             self.end_headers()
-            _log("shutdown requested via /closing (browser tab close beacon)")
-            threading.Thread(target=_shutdown, daemon=True).start()
+            with _heartbeat_lock:
+                if _closing_at is None:
+                    _closing_at = time.time()
+                    _log(
+                        f"soft-close via /closing — exit only if quiet "
+                        f">{CLOSE_GRACE}s (multipage nav must not kill app)"
+                    )
         else:
             self.send_response(404)
             self.end_headers()
@@ -105,9 +119,21 @@ def _heartbeat_server() -> None:
 def _watchdog() -> None:
     while True:
         time.sleep(1)
+        now = time.time()
         with _heartbeat_lock:
-            quiet = time.time() - _last_heartbeat
+            quiet = now - _last_heartbeat
             got = _got_heartbeat
+            closing_at = _closing_at
+        if closing_at is not None:
+            since_close = now - closing_at
+            if since_close >= CLOSE_GRACE and quiet >= CLOSE_GRACE:
+                _log(
+                    f"shutdown via soft-close "
+                    f"(since_close={since_close:.1f}s quiet={quiet:.1f}s)"
+                )
+                _shutdown()
+                return
+            continue
         limit = SHUTDOWN_TIMEOUT if got else STARTUP_GRACE
         if quiet > limit:
             _log(
@@ -115,6 +141,7 @@ def _watchdog() -> None:
                 f"(quiet={quiet:.1f}s limit={limit}s got_heartbeat={got})"
             )
             _shutdown()
+            return
 
 
 def _kill_process_tree(pid: int) -> None:
