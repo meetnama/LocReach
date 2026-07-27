@@ -1,12 +1,11 @@
 """
 step1_qualify.py — Fast Step 1 qualify path (no Streamlit).
 
-Pipeline (Arabic plan / speed path):
-  1. Cheap SERP screen  — title/snippet are the first indicators for BOTH
-                          industry and geo; fail → never HTTP-open the domain
-  2. Fast homepage HTTP — ~6s, no Chrome
-  3. Light deep scan    — at most 2–4 high-value pages (about/contact/services…)
-  4. Decide             — on-page geo + score → qualified / rejected
+Pipeline (speed / yield path):
+  1. Verified fast-path — AI Overview / Local Pack / directory / SERP summary
+  2. Loose SERP screen  — obvious junk only; on-page gates do real QC
+  3. Shallow scrape     — single HTTP homepage (~1.5s), no Chrome, no deep crawl
+  4. Decide             — existing industry_evidence_ok + verify_country_location
 """
 from __future__ import annotations
 
@@ -29,7 +28,7 @@ from scanner import (
     extract_linkedin_url,
     is_quality_site,
 )
-from scoring import score_company
+from scoring import score_company, industry_evidence_ok, _industry_keyword_list
 from sources.utils import get_domain, is_blocked
 
 _POSITIVE_TERMS = (
@@ -46,8 +45,13 @@ _HIGH_VALUE_PATH_HINTS = (
     "/interpreting", "/capabilities", "/what-we-do",
 )
 
-_MAX_DEEP_PAGES = 3  # + homepage ≤ 4
-_HTTP_TIMEOUT = 6    # fail dead hosts faster (was 10s)
+_MAX_DEEP_PAGES = 3  # + homepage ≤ 4 (deep path kept for rare fallback)
+_HTTP_TIMEOUT = 6    # legacy deep-path timeout
+_SHALLOW_TIMEOUT = 1.5  # speed path — fail dead hosts fast
+_PURE_JUNK = (
+    "casino", "betting", "porn", "xxx", "crypto exchange",
+    "forex broker", "dating", "escort",
+)
 
 # SERP title junk — login walls / errors / legal boilerplate
 _SERP_JUNK_TITLE = (
@@ -202,6 +206,54 @@ def cheap_screen_candidate(
     return True, "", domain
 
 
+def cheap_screen_loose(
+    *,
+    url: str,
+    title: str,
+    snippet: str,
+    skip_domains: set,
+    country: str = "",
+) -> tuple[bool, str, str]:
+    """
+    Reject obvious junk only. Industry + geo are decided on-page
+    (industry_evidence_ok / verify_country_location) — not from SERP blurbs.
+    Returns (keep, reason, domain).
+    """
+    domain = get_domain(url or "")
+    if not domain:
+        return False, "no_domain", ""
+
+    if is_blocked(url):
+        return False, "blocked", domain
+
+    if domain in skip_domains:
+        return False, "duplicate", domain
+
+    foreign = _foreign_cctld(domain, country or "")
+    if foreign:
+        return False, "foreign_cctld", domain
+
+    title = title or ""
+    snippet = snippet or ""
+    title_lc = title.lower()
+
+    if title_lc and any(sig in title_lc for sig in _SERP_JUNK_TITLE):
+        return False, "junk_title", domain
+
+    combined = f"{title} {snippet}".lower()
+    if any(j in combined for j in _PURE_JUNK):
+        return False, "serp_junk", domain
+
+    parts = domain.split(".")
+    is_inst = parts[-1] in ("gov", "edu", "mil") or (
+        len(parts) >= 3 and parts[-2] in ("gov", "edu", "mil")
+    )
+    if is_inst and "translation" not in combined and "localization" not in combined:
+        return False, "serp_junk", domain
+
+    return True, "", domain
+
+
 def ai_overview_screen(
     *,
     url: str,
@@ -235,6 +287,105 @@ _VERIFIED_REASONS = {
     "directory": "directory_verified",
     "serp_summary": "serp_summary_verified",
 }
+
+
+def qualify_verified_fast(
+    domain: str,
+    source: str,
+    title: str,
+    snippet: str,
+    country: str,
+    industry: str,
+) -> tuple[str, int, list[str]] | None:
+    """
+    Fast-path metadata for pre-curated sources (no website open).
+    Returns (status, score, reasons) or None when source is not verified.
+    Persist still goes through qualify_from_ai_overview in the Domains page.
+    """
+    src_map = {
+        "directory_verified": "directory",
+        "ai_overview_verified": "ai_overview",
+        "local_pack_verified": "local_pack",
+        "directory": "directory",
+        "ai_overview": "ai_overview",
+        "local_pack": "local_pack",
+        "serp_summary": "serp_summary",
+        "serp_summary_verified": "serp_summary",
+    }
+    if source not in src_map and source not in _VERIFIED_REASONS:
+        return None
+    mapped = src_map.get(source, source)
+    reason_tag = _VERIFIED_REASONS.get(mapped, f"{mapped}_verified")
+    reasons = [reason_tag]
+    if (
+        country
+        and country != "All Countries"
+        and country.lower() in (snippet or "").lower()
+    ):
+        reasons.append("geo_snippet_confirmed")
+    _ = (domain, title, industry)  # kept for API parity with plan doc
+    return ("qualified", 75, reasons)
+
+
+def shallow_scrape_and_qualify(
+    url: str,
+    domain: str,
+    country: str,
+    industry_slug: str,
+    timeout: float = _SHALLOW_TIMEOUT,
+) -> dict:
+    """
+    Fast shallow scrape. Runs EXISTING quality gates on real HTML.
+    Does NOT modify industry_evidence_ok / verify_country_location.
+    """
+    target = url if (url and "://" in url) else f"https://{domain}"
+    site_data = _http_fetch(target, timeout=timeout)
+    if not site_data:
+        return {"status": "unreachable", "reason": "timeout_or_empty"}
+
+    text = site_data.get("markdown") or ""
+    if homepage_looks_parked_or_dead(site_data):
+        return {"status": "failed", "reason": "parked_or_empty", "site_data": site_data}
+
+    keywords = _industry_keyword_list(industry_slug)
+    hits = [kw for kw in keywords if kw.lower() in text.lower()]
+    # EXISTING gate — do not modify
+    if not industry_evidence_ok(hits):
+        return {
+            "status": "rejected",
+            "reason": "industry_fail",
+            "site_data": site_data,
+            "content_preview": text[:500],
+        }
+
+    if country and country != "All Countries":
+        from sources.geo import verify_country_location
+        # EXISTING gate — do not modify
+        geo_ok, geo_ev = verify_country_location(domain, text, country)
+        if not geo_ok:
+            return {
+                "status": "rejected",
+                "reason": "geo_fail:" + ",".join(geo_ev),
+                "site_data": site_data,
+                "geo_evidence": geo_ev,
+                "content_preview": text[:500],
+            }
+        return {
+            "status": "qualified",
+            "site_data": site_data,
+            "geo_evidence": geo_ev,
+            "reasons": [
+                "shallow_scrape_qualified",
+                "industry_evidence_ok",
+                "geo:" + ",".join(geo_ev),
+            ],
+        }
+
+    return {
+        "status": "qualified",
+        "site_data": site_data,
+        "reasons": ["shallow_scrape_qualified", "industry_evidence_ok"],
+    }
 
 
 def qualify_from_ai_overview(
@@ -464,16 +615,12 @@ def qualify_domain_fast(
     strict_location: bool = True,
 ) -> dict:
     """
-    Fast qualify: HTTP homepage → ≤3 deep pages → score → decide.
+    Speed qualify pipeline:
+      1. Shallow HTTP homepage (~1.5s) — no Chrome, no deep crawl
+      2. EXISTING industry_evidence_ok + verify_country_location on real HTML
+      3. score_company for tier/score metadata
 
-    Outcomes:
-      qualified — industry evidence first (strong/possible), then country geo
-      rejected  — scored but not kept (weak industry / location mismatch) → DB
-      failed / unreachable — persisted so later runs skip them
-
-    Order of keep gates (both required when a country is selected):
-      1. Chosen industry — primary; insufficient LSP/industry evidence → reject
-      2. Country — only after industry passes; must look BASED in that country
+    Outcomes: qualified | rejected | failed | unreachable
     """
     ts = datetime.now().isoformat()
     base = {
@@ -495,59 +642,37 @@ def qualify_domain_fast(
         with db_lock:
             db_upsert_domain(conn, row)
 
-    try:
-        homepage = _http_fetch(f"https://{domain}")
-    except Exception:
-        homepage = None
+    shallow = shallow_scrape_and_qualify(
+        f"https://{domain}",
+        domain,
+        country if strict_location else "All Countries",
+        industry_slug or "",
+        timeout=_SHALLOW_TIMEOUT,
+    )
+    status = shallow.get("status")
+    site_data = shallow.get("site_data")
 
-    if not homepage:
-        # One Chrome fallback for JS-only shells (rare — slower)
-        try:
-            from scanner import scrape_site
-            homepage = scrape_site(f"https://{domain}")
-        except Exception:
-            homepage = None
-
-    if not homepage:
-        _persist("unreachable", {"score_reasons": json.dumps(["unreachable"])})
+    if status == "unreachable" or not site_data:
+        _persist("unreachable", {
+            "score_reasons": json.dumps([shallow.get("reason", "unreachable")]),
+        })
         return {**base, "status": "unreachable"}
 
     base["pages_fetched"] = 1
 
-    if homepage_looks_parked_or_dead(homepage):
-        _persist("failed", {"score_reasons": json.dumps(["parked_or_empty"])})
-        return {**base, "status": "failed", "reason": "parked_or_empty"}
+    if status == "failed":
+        reason = shallow.get("reason", "failed")
+        _persist("failed", {"score_reasons": json.dumps([reason])})
+        return {**base, "status": "failed", "reason": reason}
 
-    if not homepage_is_promising(homepage, industry_slug, domain=domain):
-        if count_internal_pages(homepage, domain) < 2:
-            _persist("failed", {"score_reasons": json.dumps(["not_promising"])})
-            return {**base, "status": "failed", "reason": "not_promising"}
-
-    deep_urls = select_high_value_urls(homepage, domain, limit=_MAX_DEEP_PAGES)
-    site_data = bounded_deep_scan(domain, homepage)
-    base["pages_fetched"] = 1 + len(deep_urls)
-
-    text_lc = (site_data.get("markdown") or "").lower()
-    if any(s in text_lc for s in _PARKING_SIGNALS) or len(text_lc) < 100:
-        _persist("failed", {"score_reasons": json.dumps(["quality"])})
-        return {**base, "status": "failed", "reason": "quality"}
-
-    # Prefer full quality gate on merged pages; if only page-count fails but
-    # relevance is clear, still score (deep pages added evidence).
-    quality_ok = is_quality_site(site_data, domain, industry_slug)
-    has_rel = any(k in text_lc for k in RELEVANCE_KEYWORDS)
-    if not quality_ok and not has_rel:
-        _persist("failed", {"score_reasons": json.dumps(["quality"])})
-        return {**base, "status": "failed", "reason": "quality"}
-
-    li_url = extract_linkedin_url(site_data)  # on-page only
+    li_url = extract_linkedin_url(site_data)
     score_val, tier, reasons = score_company(
         site_data, domain, linkedin_url=li_url, industry_slug=industry_slug,
     )
     company_name = extract_company_name(
-        site_data, google_title or domain, li_url=li_url
+        site_data, google_title or domain, li_url=li_url,
     )
-    reasons = list(reasons) + [f"pages:{base['pages_fetched']}"]
+    reasons = list(reasons) + ["pages:1", "shallow_scrape"]
 
     scored = {
         "company_name": company_name,
@@ -557,9 +682,18 @@ def qualify_domain_fast(
         "score_reasons": json.dumps(reasons),
     }
 
-    # 1) Industry is the main factor — never qualify without it.
-    industry_ok = tier in ("strong", "possible")
-    if not industry_ok:
+    if status == "rejected":
+        reason = shallow.get("reason", "rejected")
+        if reason.startswith("geo_fail"):
+            reasons.append(reason)
+            scored["score_reasons"] = json.dumps(reasons)
+            _persist("rejected", scored)
+            return {
+                **base, "status": "unverified",
+                "reason": "location_mismatch",
+                "company_name": company_name, "linkedin_url": li_url,
+                "score": score_val, "tier": tier, "reasons": reasons,
+            }
         _persist("rejected", scored)
         return {
             **base, "status": "unverified",
@@ -568,27 +702,20 @@ def qualify_domain_fast(
             "score": score_val, "tier": tier, "reasons": reasons,
         }
 
-    # 2) Country gate — only after industry passes.
-    location_ok = True
-    location_mismatch = False
-    if strict_location and country and country != "All Countries":
-        from sources.geo import verify_country_location
-        location_ok, loc_ev = verify_country_location(
-            domain, site_data.get("markdown") or "", country
-        )
-        reasons.append(("geo_ok:" if location_ok else "geo_fail:") + ",".join(loc_ev))
-        scored["score_reasons"] = json.dumps(reasons)
-        location_mismatch = not location_ok
-
-    if not location_ok:
+    # Shallow already passed industry + geo gates; score_company confirms tier.
+    if tier not in ("strong", "possible"):
         _persist("rejected", scored)
         return {
             **base, "status": "unverified",
-            "reason": "location_mismatch" if location_mismatch else "low_score",
+            "reason": "industry_mismatch",
             "company_name": company_name, "linkedin_url": li_url,
             "score": score_val, "tier": tier, "reasons": reasons,
         }
 
+    for tag in shallow.get("reasons") or []:
+        if tag not in reasons:
+            reasons.append(tag)
+    scored["score_reasons"] = json.dumps(reasons)
     _persist("qualified", {**scored, "qualified_at": ts})
 
     return {

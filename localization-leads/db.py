@@ -452,12 +452,14 @@ def db_load_all(free_email_domains: set, db_path: str = DB_PATH) -> list:
 
 # ── domains table (unified Step 1 output) ─────────────────────────────────────
 
-def db_upsert_domain(conn: sqlite3.Connection, data: dict) -> None:
+def db_upsert_domain(conn: sqlite3.Connection, data: dict,
+                     *, commit: bool = True) -> None:
     """
     Insert a domain or update its fields. Required key: 'domain'.
     Only provided fields are written; absent keys keep their existing value.
 
     status values: 'discovered' | 'qualified' | 'rejected' | 'failed' | 'unreachable'
+    Set commit=False when batching (see db_upsert_domain_batch).
     """
     domain = data["domain"]
     existing = conn.execute(
@@ -485,6 +487,28 @@ def db_upsert_domain(conn: sqlite3.Connection, data: dict) -> None:
         vals.append(domain)
         conn.execute(f"UPDATE domains SET {', '.join(sets)} WHERE domain=?", vals)
 
+    if commit:
+        conn.commit()
+
+
+def db_upsert_domain_batch(conn: sqlite3.Connection, domains: list) -> None:
+    """
+    Batch insert/update domains in one transaction (10–50× faster than
+    one-by-one commits). Each item is a dict accepted by db_upsert_domain.
+    """
+    if not domains:
+        return
+    for d in domains:
+        if not d or not d.get("domain"):
+            continue
+        # Never demote an already-qualified row to a weaker status.
+        if d.get("status") and d["status"] != "qualified":
+            cur = conn.execute(
+                "SELECT status FROM domains WHERE domain=?", (d["domain"],)
+            ).fetchone()
+            if cur and cur[0] == "qualified":
+                continue
+        db_upsert_domain(conn, d, commit=False)
     conn.commit()
 
 

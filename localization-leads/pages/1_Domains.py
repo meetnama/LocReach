@@ -23,18 +23,18 @@ from sources.utils import (
     duckduckgo_search, bing_search,
     ensure_searxng, ensure_openserp, get_domain, _captcha_flag,
     CaptchaHit, google_in_cooldown, google_cooldown_remaining,
-    running_on_cloud,
+    running_on_cloud, get_worker_count,
 )
 from sources.directory_scrape import (
     is_directory_scrape_target, scrape_directory_companies,
     directory_search_queries,
 )
-from db import (db_init, db_upsert_domain,
+from db import (db_init, db_upsert_domain, db_upsert_domain_batch,
                 db_mark_blocked_domain, db_load_blocked_domains,
                 db_load_all_domain_names,
                 db_demote_geo_rejects)
 from step1_qualify import (
-    cheap_screen_candidate, qualify_domain_fast, qualify_from_ai_overview,
+    cheap_screen_loose, qualify_domain_fast, qualify_from_ai_overview,
     ai_overview_screen, serp_summary_verified,
 )
 from ui_theme import (
@@ -59,6 +59,7 @@ _DIM_RATE_FLOOR = 12.0  # unique new qualified domains per hour
 # Directory / “Top N” list pages mined as verified company sources
 _MAX_DIRECTORY_SCRAPES = 12
 _MAX_COMPANIES_PER_DIRECTORY = 40
+_SERP_TERM_BATCH = 10  # parallel page-1 SERP fetch batch size
 
 
 def _ingest_verified_company(
@@ -286,7 +287,7 @@ _PAGE_SIZE = 10  # match typical SERP page size (15 falsely looked "short" and e
 # Cap workers on Render free tier to avoid Chrome/HTTP OOM; local stays aggressive.
 _ON_CLOUD = running_on_cloud()
 _MAX_WORKERS = 12 if _ON_CLOUD else 200
-_DEFAULT_WORKERS = 8 if _ON_CLOUD else 200
+_DEFAULT_WORKERS = get_worker_count()
 # When free engines wake cold / rate-limit, retry page-1 before burning the term bank.
 _EMPTY_SERP_RETRIES = 3 if _ON_CLOUD else 1
 _MAX_META_PAGES = 10  # deeper free-engine pagination when hunting volume
@@ -301,10 +302,16 @@ def _max_pages_for(target: int) -> int:
 
 def _check_budget_for(target: int) -> int:
     """
-    Max sites to scrape before giving up. Old rule (target×3) capped 100-target
-    runs at ~12 kept when keep-rate is ~4%. Use ~25× target, floor 800.
+    Max sites to qualify before giving up.
+    Small targets stay tight (speed); large targets keep headroom for yield.
     """
-    return min(15000, max(target * 25, 800))
+    if target <= 25:
+        return max(target * 3, 60)       # ~75 for 25
+    if target <= 50:
+        return target * 4                # 200 for 50
+    if target <= 100:
+        return target * 5                # 500 for 100
+    return min(8000, target * 8)
 
 
 def _meta_pages_for(target: int) -> int:
@@ -1279,11 +1286,48 @@ def _run_step1(queries: list, num: int, q_out: queue.Queue,
                     ))
                     _step1_log(f"SERP bank size={len(template_bank)} dir_priority={n_dir}")
 
+                serp_prefetch: dict[str, tuple] = {}
+
+                def _prefetch_serp_terms(terms: list[str]) -> None:
+                    """Parallel page-1 SERP for a batch of search terms."""
+                    todo = [t for t in terms if t and t not in serp_prefetch]
+                    if not todo:
+                        return
+                    q_out.put((
+                        "engine_note",
+                        f"Parallel SERP — fetching {len(todo)} terms…",
+                    ))
+                    with ThreadPoolExecutor(
+                        max_workers=min(_SERP_TERM_BATCH, len(todo))
+                    ) as serp_pool:
+                        futs = {
+                            serp_pool.submit(
+                                _search_page, t, page_size, 1,
+                                use_searxng, use_google, use_ddg,
+                            ): t
+                            for t in todo
+                        }
+                        for fut in as_completed(futs):
+                            term = futs[fut]
+                            try:
+                                serp_prefetch[term] = fut.result(timeout=45)
+                            except Exception as exc:
+                                _step1_log(f"SERP prefetch failed for {term!r}: {exc}")
+                                serp_prefetch[term] = (
+                                    [], "none", {"chain": ["prefetch:error"]},
+                                )
+
                 for qi, query in enumerate(template_bank):
                     if stop_event.is_set() or total_kept >= num or total_passed >= check_budget:
                         break
                     if dim_returns:
                         break
+
+                    # Prefetch next batch of page-1 SERPs in parallel
+                    if qi % _SERP_TERM_BATCH == 0:
+                        _prefetch_serp_terms(
+                            template_bank[qi:qi + _SERP_TERM_BATCH]
+                        )
 
                     raw_count     = 0
                     blocked_count = 0
@@ -1368,10 +1412,13 @@ def _run_step1(queries: list, num: int, q_out: queue.Queue,
                         q_out.put(("query_start", query))
                         q_out.put(("page", page))
 
-                        page_results, tier, meta = _search_page(
-                            query, page_size, page, use_searxng, use_google, use_ddg,
-                            q_out=q_out,
-                        )
+                        if page == 1 and query in serp_prefetch:
+                            page_results, tier, meta = serp_prefetch.pop(query)
+                        else:
+                            page_results, tier, meta = _search_page(
+                                query, page_size, page, use_searxng, use_google, use_ddg,
+                                q_out=q_out,
+                            )
                         if meta.get("chain"):
                             last_chain = " → ".join(meta["chain"])
                         if tier in (
@@ -1551,11 +1598,12 @@ def _run_step1(queries: list, num: int, q_out: queue.Queue,
                             _cap_term()
                             break
 
-                        # ── NORMAL PASS: cheap screen → open site → score/geo ──
+                        # ── NORMAL PASS: loose screen → shallow qualify ──
                         q_out.put((
                             "engine_note",
                             "Normal pass — site qualify for remaining SERP hits",
                         ))
+                        reject_batch: list[dict] = []
                         for r in page_results:
                             if (stop_event.is_set() or total_kept >= num
                                     or total_passed + len(batch) + len(pending_futs)
@@ -1575,9 +1623,9 @@ def _run_step1(queries: list, num: int, q_out: queue.Queue,
                             if r.get("source") in ("ai_overview", "local_pack"):
                                 continue
 
-                            keep, reason, domain = cheap_screen_candidate(
+                            keep, reason, domain = cheap_screen_loose(
                                 url=url, title=title, snippet=snippet,
-                                industry_slug=industry_slug, skip_domains=skip,
+                                skip_domains=skip,
                                 country=country,
                             )
                             if not keep:
@@ -1595,26 +1643,34 @@ def _run_step1(queries: list, num: int, q_out: queue.Queue,
                                         db_mark_blocked_domain(wconn, domain)
                                 elif (
                                     reason in (
-                                        "serp_irrelevant", "junk_title",
-                                        "listicle", "foreign_cctld",
-                                        "serp_geo_miss",
+                                        "serp_junk", "junk_title",
+                                        "foreign_cctld",
                                     )
                                     and domain
                                 ):
-                                    with db_lock:
-                                        db_upsert_domain(wconn, {
-                                            "domain": domain,
-                                            "status": "failed",
-                                            "industry": industry,
-                                            "country": country,
-                                            "keyword": keyword,
-                                            "score_reasons": f'["{reason}"]',
-                                        })
+                                    reject_batch.append({
+                                        "domain": domain,
+                                        "status": "failed",
+                                        "industry": industry,
+                                        "country": country,
+                                        "keyword": keyword,
+                                        "score_reasons": f'["{reason}"]',
+                                    })
                                     skip.add(domain)
+                                    if len(reject_batch) >= 50:
+                                        with db_lock:
+                                            db_upsert_domain_batch(
+                                                wconn, reject_batch,
+                                            )
+                                        reject_batch = []
                                 continue
 
                             skip.add(domain)
                             batch.append((domain, title))
+
+                        if reject_batch:
+                            with db_lock:
+                                db_upsert_domain_batch(wconn, reject_batch)
 
                         if batch:
                             for d, title in batch:
@@ -1717,7 +1773,8 @@ def _run_step1(queries: list, num: int, q_out: queue.Queue,
                         f"total_kept={total_kept}"
                     )
                     if (
-                        total_kept < num
+                        num > 50
+                        and total_kept < num
                         and not stop_event.is_set()
                         and total_passed < check_budget
                         and terms_win >= _DIM_MIN_TERMS

@@ -27,6 +27,11 @@ def running_on_cloud() -> bool:
     return False
 
 
+def get_worker_count() -> int:
+    """Step 1 qualify workers: local 200, cloud 8 (Render free-tier safe)."""
+    return 8 if running_on_cloud() else 200
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Google search via undetected-chromedriver
 # ─────────────────────────────────────────────────────────────────────────────
@@ -627,6 +632,9 @@ def merge_serp_verified_results(
             "title": name,
             "snippet": (row.get("snippet") or "")[:500],
             "source": source,
+            "is_directory": False,
+            "is_ai_overview": source == "ai_overview",
+            "is_local_pack": source == "local_pack",
         })
     return out
 
@@ -1331,6 +1339,9 @@ def searxng_search(query: str, num: int = 10, page: int = 1,
                 "link": r.get("url", ""),
                 "title": r.get("title", ""),
                 "snippet": r.get("content", ""),
+                "is_directory": False,
+                "is_ai_overview": False,
+                "is_local_pack": False,
             }
             for r in data.get("results", [])[:num]
             if r.get("url")
@@ -1636,6 +1647,9 @@ def openserp_search(query: str, num: int = 10, page: int = 1,
             "link": url,
             "title": r.get("title") or "",
             "snippet": r.get("snippet") or "",
+            "is_directory": False,
+            "is_ai_overview": False,
+            "is_local_pack": False,
         })
         if len(results) >= num:
             break
@@ -1834,7 +1848,14 @@ def duckduckgo_search(query: str, num: int = 10,
             else:
                 continue
             if href.startswith("http"):
-                results.append({"link": href, "title": title, "snippet": ""})
+                results.append({
+                    "link": href,
+                    "title": title,
+                    "snippet": "",
+                    "is_directory": False,
+                    "is_ai_overview": False,
+                    "is_local_pack": False,
+                })
             if len(results) >= num:
                 break
         return results
