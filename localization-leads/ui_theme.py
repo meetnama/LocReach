@@ -82,24 +82,60 @@ aside[data-testid="stSidebar"] {{
   opacity: 1 !important;
   transform: none !important;
   margin-left: 0 !important;
-  width: 230px !important;
-  min-width: 230px !important;
-  max-width: 230px !important;
+  width: 180px !important;
+  min-width: 180px !important;
+  max-width: 180px !important;
   overflow-x: hidden !important;
   overflow-y: hidden !important;
   background: linear-gradient(180deg, rgba(15,23,42,0.92) 0%, rgba(2,6,23,0.94) 100%) !important;
-  border-right: 1px solid rgba(59,130,246,0.35) !important;
+  border-right: 3px solid rgba(96,165,250,0.55) !important;
   z-index: 999 !important;
 }}
 section[data-testid="stSidebar"] > div,
 aside[data-testid="stSidebar"] > div {{
   background: transparent !important;
-  width: 230px !important;
-  max-width: 230px !important;
+  width: 100% !important;
+  max-width: 100% !important;
   overflow-x: hidden !important;
   overflow-y: hidden !important;
-  padding-left: 0.35rem !important;
-  padding-right: 0.35rem !important;
+  padding: 0.45rem 0.4rem !important;
+  box-sizing: border-box !important;
+}}
+/* Beat Streamlit's inline style="width: 300px" on the sidebar */
+html body section[data-testid="stSidebar"],
+html body aside[data-testid="stSidebar"],
+section.stSidebar[data-testid="stSidebar"],
+aside.stSidebar[data-testid="stSidebar"] {{
+  width: 180px !important;
+  min-width: 180px !important;
+  max-width: 180px !important;
+  flex: 0 0 180px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+}}
+/* THE empty-space culprit: Streamlit sizes this to content (~82px) inside a wider sidebar */
+section[data-testid="stSidebar"] [data-testid="stSidebarContent"],
+aside[data-testid="stSidebar"] [data-testid="stSidebarContent"] {{
+  width: 100% !important;
+  min-width: 100% !important;
+  max-width: 100% !important;
+  flex: 1 1 auto !important;
+  align-self: stretch !important;
+  box-sizing: border-box !important;
+}}
+section[data-testid="stSidebar"] [data-testid="stSidebarUserContent"],
+aside[data-testid="stSidebar"] [data-testid="stSidebarUserContent"],
+section[data-testid="stSidebar"] [data-testid="stHtml"],
+aside[data-testid="stSidebar"] [data-testid="stHtml"],
+section[data-testid="stSidebar"] [data-testid="stElementContainer"],
+aside[data-testid="stSidebar"] [data-testid="stElementContainer"],
+section[data-testid="stSidebar"] [data-testid="stVerticalBlock"],
+aside[data-testid="stSidebar"] [data-testid="stVerticalBlock"] {{
+  width: 100% !important;
+  min-width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
 }}
 section[data-testid="stSidebar"] ::-webkit-scrollbar,
 aside[data-testid="stSidebar"] ::-webkit-scrollbar {{
@@ -122,16 +158,130 @@ aside[data-testid="stSidebar"] span,
 aside[data-testid="stSidebar"] label {{
   color: #ffffff !important;
 }}
-/* Sidebar nav buttons — hover + current-page marker */
+/* Custom HTML sidebar — force Streamlit wrappers to full bar width */
+section[data-testid="stSidebar"] [data-testid="stSidebarContent"],
+aside[data-testid="stSidebar"] [data-testid="stSidebarContent"],
+section[data-testid="stSidebar"] [data-testid="stSidebarUserContent"],
+aside[data-testid="stSidebar"] [data-testid="stSidebarUserContent"],
+section[data-testid="stSidebar"] [data-testid="stVerticalBlock"],
+aside[data-testid="stSidebar"] [data-testid="stVerticalBlock"],
+section[data-testid="stSidebar"] [data-testid="stVerticalBlock"] > div,
+aside[data-testid="stSidebar"] [data-testid="stVerticalBlock"] > div,
+section[data-testid="stSidebar"] [data-testid="element-container"],
+aside[data-testid="stSidebar"] [data-testid="element-container"],
+section[data-testid="stSidebar"] [data-testid="stElementContainer"],
+aside[data-testid="stSidebar"] [data-testid="stElementContainer"],
+section[data-testid="stSidebar"] [data-testid="stHtml"],
+aside[data-testid="stSidebar"] [data-testid="stHtml"],
+section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"],
+aside[data-testid="stSidebar"] [data-testid="stMarkdownContainer"],
+section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] > div,
+aside[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] > div {{
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 100% !important;
+  box-sizing: border-box !important;
+}}
+.lr-side {{
+  display: block !important;
+  width: 100% !important;
+  min-width: 100% !important;
+  box-sizing: border-box !important;
+}}
+.lr-side-brand {{
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  width: 100% !important;
+  margin: 2px 0 14px 0 !important;
+}}
+.lr-side-brand img {{
+  display: block !important;
+  width: 140px !important;
+  max-width: 100% !important;
+  height: auto !important;
+  margin: 0 auto !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}}
+.lr-side-nav {{
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 4px !important;
+  width: 100% !important;
+  min-width: 100% !important;
+  box-sizing: border-box !important;
+}}
+a.lr-nav-item,
+section[data-testid="stSidebar"] a.lr-nav-item,
+aside[data-testid="stSidebar"] a.lr-nav-item {{
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  width: 100% !important;
+  min-width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  margin: 0 !important;
+  padding: 0.6rem 0.75rem !important;
+  border-radius: 10px !important;
+  border: 1px solid transparent !important;
+  background: rgba(255,255,255,0.03) !important;
+  color: #ffffff !important;
+  font-size: 0.95rem !important;
+  font-weight: 600 !important;
+  line-height: 1.2 !important;
+  text-decoration: none !important;
+  white-space: nowrap !important;
+  transition: background 0.15s ease, border-color 0.15s ease !important;
+}}
+a.lr-nav-item:hover {{
+  background: rgba(59,130,246,0.24) !important;
+  border-color: rgba(59,130,246,0.35) !important;
+  color: #ffffff !important;
+  text-decoration: none !important;
+}}
+a.lr-nav-item.is-active {{
+  background: rgba(59,130,246,0.32) !important;
+  border: 1px solid rgba(96,165,250,0.5) !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+  pointer-events: none !important;
+}}
+a.lr-nav-item .lr-nav-lbl {{ flex: 1 1 auto; color: #ffffff !important; }}
+/* Logo — legacy class kept */
+.lr-sidebar-logo-wrap {{
+  display: flex !important;
+  justify-content: center !important;
+  width: 100% !important;
+  margin: 4px 0 12px 0 !important;
+}}
+.lr-sidebar-logo-wrap img,
+img.lr-sidebar-logo {{
+  display: block !important;
+  width: 180px !important;
+  max-width: 180px !important;
+  height: auto !important;
+  margin: 0 auto !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}}
+/* Nav buttons — full sidebar width, left-aligned labels */
+section[data-testid="stSidebar"] .stButton,
+aside[data-testid="stSidebar"] .stButton {{
+  width: 100% !important;
+  margin: 0 !important;
+}}
 section[data-testid="stSidebar"] .stButton > button,
 aside[data-testid="stSidebar"] .stButton > button {{
   display: flex !important;
   align-items: center !important;
   justify-content: flex-start !important;
-  gap: 0.45rem !important;
   width: 100% !important;
   margin: 3px 0 !important;
-  padding: 0.55rem 0.7rem !important;
+  padding: 0.55rem 0.65rem !important;
   border-radius: 10px !important;
   border: 1px solid transparent !important;
   background: transparent !important;
@@ -139,7 +289,19 @@ aside[data-testid="stSidebar"] .stButton > button {{
   font-size: 0.92rem !important;
   font-weight: 600 !important;
   box-shadow: none !important;
-  transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease !important;
+  white-space: nowrap !important;
+  text-align: left !important;
+  box-sizing: border-box !important;
+  transform: none !important;
+  transition: background 0.15s ease, border-color 0.15s ease !important;
+}}
+section[data-testid="stSidebar"] .stButton > button p,
+aside[data-testid="stSidebar"] .stButton > button p,
+section[data-testid="stSidebar"] .stButton > button div,
+aside[data-testid="stSidebar"] .stButton > button div {{
+  white-space: nowrap !important;
+  text-align: left !important;
+  margin: 0 !important;
 }}
 section[data-testid="stSidebar"] .stButton > button:hover:not(:disabled),
 aside[data-testid="stSidebar"] .stButton > button:hover:not(:disabled) {{
@@ -152,19 +314,17 @@ aside[data-testid="stSidebar"] .stButton > button:hover:not(:disabled) {{
 section[data-testid="stSidebar"] .stButton > button[kind="primary"],
 aside[data-testid="stSidebar"] .stButton > button[kind="primary"],
 section[data-testid="stSidebar"] .stButton > button[data-testid="baseButton-primary"],
-aside[data-testid="stSidebar"] .stButton > button[data-testid="baseButton-primary"] {{
-  background: rgba(59,130,246,0.34) !important;
-  border: 1px solid rgba(96,165,250,0.65) !important;
-  border-left: 4px solid {REACH["400"]} !important;
-  color: #ffffff !important;
-  box-shadow: inset 0 0 0 1px rgba(59,130,246,0.25) !important;
-  font-weight: 700 !important;
-}}
+aside[data-testid="stSidebar"] .stButton > button[data-testid="baseButton-primary"],
 section[data-testid="stSidebar"] .stButton > button:disabled,
 aside[data-testid="stSidebar"] .stButton > button:disabled {{
+  background: rgba(59,130,246,0.32) !important;
+  border: 1px solid rgba(96,165,250,0.45) !important;
+  color: #ffffff !important;
   opacity: 1 !important;
   cursor: default !important;
-  color: #ffffff !important;
+  font-weight: 700 !important;
+  box-shadow: none !important;
+  width: 100% !important;
 }}
 /* Keep page_link styles as fallback */
 section[data-testid="stSidebar"] [data-testid="stPageLink-NavLink"],
@@ -427,37 +587,20 @@ div[data-testid="stHorizontalBlock"]:has(a[href*="1_Domains"]) a {{
   border-radius: 10px !important;
 }}
 
-/* Sidebar logo (transparent PNG — not a boxed image card) */
+/* Sidebar logo */
 .lr-sidebar-logo {{
-  display: block;
-  width: 92% !important;
-  max-width: none !important;
+  display: block !important;
+  width: 180px !important;
+  max-width: 180px !important;
   height: auto !important;
-  margin: 8px auto 16px auto !important;
-  padding: 0;
+  margin: 0 auto !important;
   background: transparent !important;
   border: none !important;
-  border-radius: 0 !important;
   box-shadow: none !important;
 }}
 section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"],
 aside[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] {{
   background: transparent !important;
-}}
-section[data-testid="stSidebar"] img.lr-sidebar-logo,
-aside[data-testid="stSidebar"] img.lr-sidebar-logo {{
-  background: transparent !important;
-  width: 92% !important;
-  max-width: none !important;
-  margin-left: auto !important;
-  margin-right: auto !important;
-}}
-/* Center the markdown block that holds the logo */
-section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"]:has(img.lr-sidebar-logo),
-aside[data-testid="stSidebar"] [data-testid="stMarkdownContainer"]:has(img.lr-sidebar-logo) {{
-  display: flex !important;
-  justify-content: center !important;
-  text-align: center !important;
 }}
 
 /* Sidebar brand (text fallback) */
@@ -585,16 +728,26 @@ aside[data-testid="stSidebar"] [data-testid="stMarkdownContainer"]:has(img.lr-si
 """
 
 
+_SIDEBAR_NAV = (
+    ("0_Home.py",     "home",      "Home"),
+    ("1_Domains.py",  "domains",   "Step 1"),
+    ("2_People.py",   "people",    "Step 2"),
+    ("3_Emails.py",   "emails",    "Step 3"),
+    ("4_Database.py", "database",  "Database"),
+)
+
+
 def render_app_sidebar() -> None:
-    """Left sidebar navigation — call from app entry and from each page theme."""
+    """Custom HTML sidebar: centered logo + full-width nav links."""
     with st.sidebar:
         sidebar_brand()
-        sidebar_pipeline_nav()
 
 
 def inject_theme(*, show_home_button: bool = True) -> None:
     """Inject shared CSS, sidebar nav, and optional Home shortcut."""
-    st.markdown(_THEME_CSS, unsafe_allow_html=True)
+    # st.html — not st.markdown: Streamlit 1.57 was escaping large HTML/CSS as text,
+    # so our sidebar width rules never applied and nav rendered as raw markup.
+    st.html(_THEME_CSS)
     render_app_sidebar()
     # Do not mount components.html here — Step 1 auto-reruns ~1.5s and that
     # remount spam previously flooded logs and competed with the heartbeat iframe.
@@ -627,24 +780,42 @@ def pipeline_nav_bar() -> None:
 
 
 def sidebar_brand(step_icon: str = "LR", step_label: str = "Navigate the pipeline") -> None:
-    """Sidebar header — centered LocReach logo with transparent background."""
+    """Single HTML block: centered logo + full-width nav (no st.button)."""
+    current = _current_page_filename()
     logo_path = Path(__file__).resolve().parent / "assets" / "locreach_logo.png"
     if logo_path.is_file():
         b64 = base64.b64encode(logo_path.read_bytes()).decode("ascii")
-        st.markdown(
-            f'<div style="display:flex;justify-content:center;width:100%;">'
-            f'<img class="lr-sidebar-logo" src="data:image/png;base64,{b64}" '
-            f'alt="LocReach" /></div>',
-            unsafe_allow_html=True,
+        brand = (
+            f'<div class="lr-side-brand" style="display:flex;justify-content:center;width:100%;margin:2px 0 14px 0;">'
+            f'<img src="data:image/png;base64,{b64}" alt="LocReach" width="140" '
+            f'style="width:140px;max-width:100%;height:auto;display:block;margin:0 auto;" />'
+            f"</div>"
         )
-        return
-    st.markdown(
-        f'<div class="lr-sb-brand">'
-        f'<div class="lr-sb-brand-icon">{_html.escape(step_icon)}</div>'
-        f'<div><div class="lr-sb-brand-title">LocReach</div>'
-        f'<div class="lr-sb-brand-sub">{_html.escape(step_label)}</div></div>'
-        f'</div>',
-        unsafe_allow_html=True,
+    else:
+        brand = (
+            f'<div class="lr-sb-brand">'
+            f'<div class="lr-sb-brand-icon">{_html.escape(step_icon)}</div>'
+            f'<div><div class="lr-sb-brand-title">LocReach</div>'
+            f'<div class="lr-sb-brand-sub">{_html.escape(step_label)}</div></div>'
+            f"</div>"
+        )
+
+    links = []
+    for fname, url_path, label in _SIDEBAR_NAV:
+        active = " is-active" if fname == current else ""
+        links.append(
+            f'<a class="lr-nav-item{active}" href="/{url_path}" '
+            f'style="display:flex;align-items:center;width:100%;'
+            f'box-sizing:border-box;padding:0.6rem 0.75rem;border-radius:10px;'
+            f'text-decoration:none;color:#fff;font-weight:600;">'
+            f'<span class="lr-nav-lbl">{_html.escape(label)}</span></a>'
+        )
+
+    st.html(
+        f'<div class="lr-side" style="display:block;width:100%;min-width:100%;box-sizing:border-box;">'
+        f'{brand}'
+        f'<nav class="lr-side-nav" style="display:flex;flex-direction:column;gap:4px;width:100%;">'
+        f'{"".join(links)}</nav></div>'
     )
 
 
@@ -744,6 +915,53 @@ def link_icon(url: str) -> str:
 
 def _current_page_filename() -> str:
     """Best-effort current page script name (e.g. '1_Domains.py')."""
+    known = {
+        "0_Home.py",
+        "1_Domains.py",
+        "2_People.py",
+        "3_Emails.py",
+        "4_Database.py",
+    }
+    path_map = {
+        "home": "0_Home.py",
+        "domains": "1_Domains.py",
+        "people": "2_People.py",
+        "emails": "3_Emails.py",
+        "database": "4_Database.py",
+    }
+    import inspect
+    # Prefer pages/* frame — most reliable while a page script is running
+    for fr in inspect.stack():
+        f = fr.filename.replace("\\", "/")
+        if "/pages/" in f and f.endswith(".py"):
+            name = f.rsplit("/", 1)[-1]
+            if name in known:
+                try:
+                    st.session_state["_lr_nav_page"] = name
+                except Exception:
+                    pass
+                return name
+    # URL path from custom sidebar links (/home, /domains, ...)
+    try:
+        uri = ""
+        try:
+            uri = (st.context.url or "") if hasattr(st, "context") else ""
+        except Exception:
+            uri = ""
+        path = ""
+        if uri:
+            from urllib.parse import urlparse
+            path = (urlparse(uri).path or "").strip("/").split("/")[-1].lower()
+        if path in path_map:
+            return path_map[path]
+    except Exception:
+        pass
+    try:
+        stamped = st.session_state.get("_lr_nav_page", "")
+        if stamped in known:
+            return stamped
+    except Exception:
+        pass
     try:
         from streamlit.runtime.scriptrunner_utils.script_run_context import (
             get_script_run_ctx,
@@ -752,44 +970,19 @@ def _current_page_filename() -> str:
         if ctx is not None:
             path = getattr(ctx, "main_script_path", None) or ""
             if path:
-                return str(path).replace("\\", "/").rsplit("/", 1)[-1]
+                name = str(path).replace("\\", "/").rsplit("/", 1)[-1]
+                if name in known:
+                    return name
+                if name in ("Domain_Discovery.py", "streamlit_app.py", "app.py"):
+                    return "0_Home.py"
     except Exception:
         pass
-    import inspect
-    for fr in inspect.stack():
-        f = fr.filename.replace("\\", "/")
-        if "/pages/" in f and f.endswith(".py"):
-            return f.rsplit("/", 1)[-1]
-    return ""
+    return "0_Home.py"
 
 
 def sidebar_pipeline_nav() -> None:
-    """Sidebar links with hover + clear marker for the current page."""
-    current = _current_page_filename()
-    items = [
-        ("0_Home.py",     "pages/0_Home.py",     "🏠  Home"),
-        ("1_Domains.py",  "pages/1_Domains.py",  "🔍  Step 1"),
-        ("2_People.py",   "pages/2_People.py",   "👥  Step 2"),
-        ("3_Emails.py",   "pages/3_Emails.py",   "📧  Step 3"),
-        ("4_Database.py", "pages/4_Database.py", "🗄️  Database"),
-    ]
-    for fname, page, label in items:
-        is_active = bool(current) and (current == fname or current.endswith("/" + fname))
-        if is_active:
-            st.button(
-                label,
-                key=f"lr_nav_active_{fname}",
-                use_container_width=True,
-                type="primary",
-                disabled=True,
-            )
-        else:
-            if st.button(
-                label,
-                key=f"lr_nav_{fname}",
-                use_container_width=True,
-            ):
-                st.switch_page(page)
+    """Deprecated — nav is rendered inside sidebar_brand() as custom HTML."""
+    return
 
 
 def pipeline_cards(steps) -> None:

@@ -233,8 +233,10 @@ def _start_streamlit() -> subprocess.Popen:
             "true",
             "--server.port",
             str(STREAMLIT_PORT),
+            # "poll" so local CSS/Python edits show on refresh (Windows-safe).
+            # "none" required a full bat restart for every UI change.
             "--server.fileWatcherType",
-            "none",
+            "poll",
         ],
         cwd=BASE_DIR,
         env=env,

@@ -1,6 +1,6 @@
 # LocReach Lead Discovery — Project Memory
 
-_Last updated: 2026-07-27 (session 43 — UI shell: sidebar nav, brand assets, local heartbeat fix)_
+_Last updated: 2026-07-27 (session 44 — custom HTML sidebar, DevTools width fix, file watcher)_
 
 **Read this first in every new session.** This file is the authoritative snapshot of how the app works *today*. Older user-facing docs may still mention the **old 4-step pipeline**. The live app is a **3-step unified pipeline** with a single `domains` table.
 
@@ -21,12 +21,12 @@ Some chats ask: do **not** re-scan the whole repo; only open files the user name
 | **Product name** | **LocReach** (UI, launchers, exports) |
 | **Purpose** | B2B lead-gen for localization/translation: find qualified companies → decision-makers → confirmed work emails |
 | **Stack** | Streamlit (Python), SQLite (`leads.db`), undetected-chromedriver, SearXNG + OpenSERP (Docker), Groq (optional classifier) |
-| **Entry point** | `Domain_Discovery.py` — `st.navigation(..., position="hidden")`; custom sidebar owns page links |
+| **Entry point** | `Domain_Discovery.py` — `st.navigation(..., position="hidden")` + `url_path` per page (`home`/`domains`/`people`/`emails`/`database`); custom HTML sidebar owns links |
 | **Local launcher** | `Setup/6 - Start LocReach.bat` → auto-starts SearXNG + OpenSERP when possible, then `pythonw run_app.py` |
 | **Cloud (live)** | https://locreach.onrender.com — user opens **this URL only** (SearXNG/OpenSERP are backend services) |
 | **Ports (local)** | Streamlit `:8501`, heartbeat `:8502`, SearXNG `:8888`, OpenSERP `:7000` |
 | **Local Docker** | Containers `searxng` (`8888:8080`) + `openserp` (`7000:7000`) — correct for local Step 1 |
-| **Tests** | `pytest tests/ -q` — **49** passed (session 42 baseline; UI session did not add tests) |
+| **Tests** | `pytest tests/ -q` — **49** passed (session 42 baseline; UI sessions did not add tests) |
 | **Step 1 log** | `localization-leads/logs/step1_search.log` (weekly autoclean on run start; gitignored) |
 | **Launcher log** | `localization-leads/logs/run_app.log` (shutdown: `/closing` vs heartbeat timeout) |
 
@@ -114,33 +114,38 @@ Some chats ask: do **not** re-scan the whole repo; only open files the user name
 
 L1 site / L2 EFmt+SMTP / L4 SearXNG only. **L3 `pattern_verify` deleted** (session 41). Gate: `lead_gate.is_confirmed_lead()`.
 
-### Launcher / heartbeat (session 43)
+### Launcher / heartbeat (session 43–44)
 
 `run_app.py` sets `LOCREACH_HEARTBEAT_PORT`; `Domain_Discovery.py` injects parent ping **only if that env is set** (cloud Streamlit CMD skips it).
 - **Ping on every remount** + re-arm parent `setInterval` if lost (fixes false Connection error).
 - `SHUTDOWN_TIMEOUT` **300s** (was 180s).
 - Do **not** mount extra `components.html` from `inject_theme` (Step 1 ~1.5s remount spam killed heartbeats / flooded `run_app.log`).
 - Diagnose kills: `logs/run_app.log` → `shutdown via heartbeat timeout` + `killing Streamlit`.
+- **File watcher (session 44):** `--server.fileWatcherType poll` (was `none`) so local CSS/Python edits reload without a full bat restart. Closing the browser still stops heartbeats → watchdog exits the process after timeout.
 
-**Restart rule:** After code changes, fully restart via `6 - Start LocReach.bat`.
+**Restart rule:** Prefer refresh after edits (poll watcher). Full `6 - Start LocReach.bat` still required after process exit / Connection error / entry-point changes.
 
 ---
 
-## UI architecture (2026-07-27 — session 43)
+## UI architecture (2026-07-27 — session 44)
 
 | Component | Status |
 |-----------|--------|
-| **Framework** | Streamlit; read-only Jinja embeds via `template_render.py` + `components.html` |
-| **Design system** | `ui_theme.py` — navy→cyan **gradient bg** (`assets/locreach_bg.png` data-URI, no color overlay); app text **white** |
-| **Navigation** | Left sidebar only (`position="hidden"` + `render_app_sidebar` / `sidebar_pipeline_nav`). No top tabs / no main NAVIGATION strip |
-| **Sidebar width** | Fixed **230px**, no scroll/resizer; collapse/fullscreen chrome hidden |
-| **Logo** | Transparent `assets/locreach_logo.png` centered at sidebar top (not boxed LR chip) |
-| **Current page** | `sidebar_pipeline_nav` uses `st.button` + `st.switch_page`; **active** = primary + left accent (not relying on `aria-current`) |
-| **Hover** | Unified blue hover on inactive sidebar buttons |
-| **Home** | Three metric cards only (`templates/_pipeline_snapshot_embed.html`) — no welcome, pipeline step cards, Open Database, export, or reset |
+| **Framework** | Streamlit **1.57**; read-only Jinja embeds via `template_render.py` + `components.html` |
+| **Design system** | `ui_theme.py` — navy→cyan **gradient bg** (`assets/locreach_bg.png` data-URI); app text **white** |
+| **Theme inject** | `inject_theme` → **`st.html(_THEME_CSS)`** (not `st.markdown`) — 1.57 was escaping large HTML/CSS as text |
+| **Navigation** | Left sidebar only (`position="hidden"`). Single HTML block via `sidebar_brand` / `render_app_sidebar` |
+| **Page URLs** | `Domain_Discovery.py` `st.Page(..., url_path=)` → `/home` `/domains` `/people` `/emails` `/database` |
+| **Nav links** | Custom `<a class="lr-nav-item">` in `st.html` — **text labels only** (icons removed session 44); active = `.is-active` |
+| **Sidebar width** | **180px** via CSS `!important` (beats Streamlit inline `width: 300px`). Culprit for empty gap was `stSidebarContent` shrink-wrap — forced `min-width/width: 100%` on content + `stHtml` wrappers |
+| **Logo** | `assets/locreach_logo.png` centered at top (~140px) inside `.lr-side-brand` |
+| **Border** | Sidebar `border-right: 3px` cyan |
+| **Home** | Three metric cards only — no welcome/pipeline cards/export/reset |
 | **Database page** | Browse tabs + full-DB Excel + Danger Zone `db_wipe_all` |
-| **Home button** | Every page **except** Home (`← Back to Home`) |
-| **Jinja embeds** | Home metrics; Step 2/3 DB tables (`_pipeline_snapshot_embed`, `_db_people_embed`, `_db_leads_embed` + `_embed_base`) |
+| **Home button** | Every page **except** Home (`← Back to Home` via `st.page_link`) |
+| **Deprecated** | `sidebar_pipeline_nav` no-op (nav lives in `sidebar_brand`); do not reintroduce `st.button` sidebar nav |
+
+**DevTools lesson (session 44):** Measure live computed widths. Streamlit sets inline `width: 300px` on `stSidebar`; children shrink-wrap unless `stSidebarContent`/`stHtml` forced to 100%. Fighting `st.button` CSS for full-width nav fails — use `st.html` custom links.
 
 ---
 
@@ -493,6 +498,23 @@ Before the 2026-06/07 rebuild: Domain Discovery → Site Scanner → People → 
 | Google CAPTCHA | Local gap-fill / panels only (cloud Step 1 skips Chrome SERP) |
 | OpenSERP / SearXNG rate limits | Brave/DDG/Startpage often CAPTCHA/429; Bing/Yandex may still return hits |
 | Country filter on exports | Deferred since session 36 |
+
+---
+
+## Session 44 (2026-07-27) — custom HTML sidebar + DevTools width fix
+
+### Shipped
+1. Rebuilt sidebar as **one `st.html` block** (logo + text-only nav links); dropped `st.button` nav.
+2. Added `url_path` on all `st.Page` entries (`home`/`domains`/`people`/`emails`/`database`).
+3. `inject_theme` uses **`st.html`** for CSS (markdown was escaping large style/HTML in Streamlit 1.57).
+4. DevTools: empty space = `stSidebar` 300px inline vs shrink-wrapped `stSidebarContent` (~82px). Forced content/html wrappers to 100%; sidebar cap **180px**.
+5. `run_app.py` file watcher **`poll`** (was `none`) so refresh picks up edits.
+6. Removed sidebar emoji icons (labels only).
+7. Active page: `.lr-nav-item.is-active` + `_current_page_filename()` (stack / url_path / session).
+
+### Not done this session
+- Long local Step 1 heartbeat validation after bat restart
+- Cloud Step 1 yield re-check / paid disk / re-private GitHub / demote junk verified rows
 
 ---
 

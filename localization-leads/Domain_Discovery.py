@@ -77,11 +77,11 @@ if _heartbeat_port:
 # Custom sidebar links come from inject_theme on each page.
 pg = st.navigation(
     [
-        st.Page("pages/0_Home.py",     title="Home",              icon="🏠", default=True),
-        st.Page("pages/1_Domains.py",  title="Step 1 · Domains",  icon="🔍"),
-        st.Page("pages/2_People.py",   title="Step 2 · People",   icon="👥"),
-        st.Page("pages/3_Emails.py",   title="Step 3 · Emails",   icon="📧"),
-        st.Page("pages/4_Database.py", title="Database",          icon="🗄️"),
+        st.Page("pages/0_Home.py",     title="Home",              icon="🏠", default=True, url_path="home"),
+        st.Page("pages/1_Domains.py",  title="Step 1 · Domains",  icon="🔍", url_path="domains"),
+        st.Page("pages/2_People.py",   title="Step 2 · People",   icon="👥", url_path="people"),
+        st.Page("pages/3_Emails.py",   title="Step 3 · Emails",   icon="📧", url_path="emails"),
+        st.Page("pages/4_Database.py", title="Database",          icon="🗄️", url_path="database"),
     ],
     # Custom sidebar links only — framework top/sidebar nav has been unreliable.
     position="hidden",
